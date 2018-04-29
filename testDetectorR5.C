@@ -7,11 +7,12 @@
 void testDetectorR5() {
 
 
-  DetectorK its("ALICE","ITS");
+  KMCDetector its("ALICE","ITS");
   its.SetBField(1.);
   // new ideal Pixel properties?
   Double_t x0IB     = 0.001;
   Double_t x0OB     = 0.005;
+  Double_t xRho     = 0.;
   Double_t resRPhiIB     = 0.0001;
   Double_t resZIB        = 0.0001;
   Double_t resRPhiOB     = 0.0005;
@@ -19,47 +20,47 @@ void testDetectorR5() {
   Double_t eff           = 0.98;
   //
   /*
-  its.AddLayer((char*)"ddd1",  2.32 ,  x0IB, resRPhiIB, resZIB,eff); 
-  its.AddLayer((char*)"ddd2",  3.13 ,  x0IB, resRPhiIB, resZIB,eff); 
-  its.AddLayer((char*)"ddd3",  3.91 ,  x0IB, resRPhiIB, resZIB,eff);
+  its.AddLayer((char*)"ddd1",  2.32 ,  x0IB, xRho, resRPhiIB, resZIB,eff); 
+  its.AddLayer((char*)"ddd2",  3.13 ,  x0IB, xRho, resRPhiIB, resZIB,eff); 
+  its.AddLayer((char*)"ddd3",  3.91 ,  x0IB, xRho, resRPhiIB, resZIB,eff);
   
-  its.AddLayer((char*)"ddd4",  19.41,  x0OB, resRPhiOB, resZOB,eff); 
-  its.AddLayer((char*)"ddd5",  24.71 ,  x0OB, resRPhiOB, resZOB,eff); 
+  its.AddLayer((char*)"ddd4",  19.41,  x0OB, xRho, resRPhiOB, resZOB,eff); 
+  its.AddLayer((char*)"ddd5",  24.71 ,  x0OB, xRho, resRPhiOB, resZOB,eff); 
 
-  its.AddLayer((char*)"ddd6",  35.33 ,  x0OB, resRPhiOB, resZOB,eff); 
-  its.AddLayer((char*)"ddd7",  40.53 ,  x0OB, resRPhiOB, resZOB,eff); 
+  its.AddLayer((char*)"ddd6",  35.33 ,  x0OB, xRho, resRPhiOB, resZOB,eff); 
+  its.AddLayer((char*)"ddd7",  40.53 ,  x0OB, xRho, resRPhiOB, resZOB,eff); 
   
-  its.AddLayer((char*)"dddZ",  90.53 ,  x0OB, resRPhiOB, resZOB,eff); 
-  its.AddLayer((char*)"dddY",  95.0 ,  x0OB, resRPhiOB, resZOB,eff); 
-  its.AddLayer((char*)"dddX",  100.0 ,  x0OB, resRPhiOB, resZOB,eff); 
+  its.AddLayer((char*)"dddZ",  90.53 ,  x0OB, xRho, resRPhiOB, resZOB,eff); 
+  its.AddLayer((char*)"dddY",  95.0 ,  x0OB, xRho, resRPhiOB, resZOB,eff); 
+  its.AddLayer((char*)"dddX",  100.0 ,  x0OB, xRho, resRPhiOB, resZOB,eff); 
   */
-  its.AddLayer((char*)"vertex",     0,     0); // dummy vertex for matrix calculation
+  its.AddLayer((char*)"vertex",     0,  0, 0); // dummy vertex for matrix calculation
 
   its.AddLayer((char*)"bpipe",1.6.0,0.0022);
   //its.AddLayer((char*)"bpipe",2.0.0,0.0022);
 
   /*
-  its.AddLayer((char*)"ddd1",  2.3 ,  x0IB, resRPhiIB, resZIB,eff); 
-  its.AddLayer((char*)"ddd2",  3.5 ,  x0IB, resRPhiIB, resZIB,eff); 
-  its.AddLayer((char*)"ddd3",  5 ,    x0IB, resRPhiIB, resZIB,eff);
+  its.AddLayer((char*)"ddd1",  2.3 ,  x0IB, xRho, resRPhiIB, resZIB,eff); 
+  its.AddLayer((char*)"ddd2",  3.5 ,  x0IB, xRho, resRPhiIB, resZIB,eff); 
+  its.AddLayer((char*)"ddd3",  5 ,    x0IB, xRho, resRPhiIB, resZIB,eff);
   */
   ///*
-  its.AddLayer((char*)"ddd1",  1.8 ,  x0IB, resRPhiIB, resZIB,eff); 
-  its.AddLayer((char*)"ddd2",  2.8 ,  x0IB, resRPhiIB, resZIB,eff); 
-  its.AddLayer((char*)"ddd3",  3.8 ,  x0IB, resRPhiIB, resZIB,eff);
+  its.AddLayer((char*)"ddd1",  1.8 ,  x0IB, xRho, resRPhiIB, resZIB,eff); 
+  its.AddLayer((char*)"ddd2",  2.8 ,  x0IB, xRho, resRPhiIB, resZIB,eff); 
+  its.AddLayer((char*)"ddd3",  3.8 ,  x0IB, xRho, resRPhiIB, resZIB,eff);
   // */
-  its.AddLayer((char*)"ddd3a",  8,  x0IB, resRPhiOB, resZOB,eff); 
+  its.AddLayer((char*)"ddd3a",  8,  x0IB, xRho, resRPhiOB, resZOB,eff); 
   
-  its.AddLayer((char*)"ddd4",  20.,  x0OB, resRPhiOB, resZOB,eff); 
-  its.AddLayer((char*)"ddd5",  25 ,  x0OB, resRPhiOB, resZOB,eff); 
+  its.AddLayer((char*)"ddd4",  20.,  x0OB, xRho, resRPhiOB, resZOB,eff); 
+  its.AddLayer((char*)"ddd5",  25 ,  x0OB, xRho, resRPhiOB, resZOB,eff); 
 
-  //  its.AddLayer((char*)"ddd6",  35. ,  x0OB, resRPhiOB, resZOB,eff); 
-  its.AddLayer((char*)"ddd7",  40. ,  x0OB, resRPhiOB, resZOB,eff); 
-  its.AddLayer((char*)"ddd8",  55. ,  x0OB, resRPhiOB, resZOB,eff); 
+  //  its.AddLayer((char*)"ddd6",  35. ,  x0OB, xRho, resRPhiOB, resZOB,eff); 
+  its.AddLayer((char*)"ddd7",  40. ,  x0OB, xRho, resRPhiOB, resZOB,eff); 
+  its.AddLayer((char*)"ddd8",  55. ,  x0OB, xRho, resRPhiOB, resZOB,eff); 
   
-  //  its.AddLayer((char*)"dddZ",  90. ,  x0OB, resRPhiOB, resZOB,eff); 
-  its.AddLayer((char*)"dddY",  80.0 ,  x0OB, resRPhiOB, resZOB,eff); 
-  its.AddLayer((char*)"dddX",  100.0 ,  x0OB, resRPhiOB, resZOB,eff); 
+  //  its.AddLayer((char*)"dddZ",  90. ,  x0OB, xRho, resRPhiOB, resZOB,eff); 
+  its.AddLayer((char*)"dddY",  80.0 ,  x0OB, xRho, resRPhiOB, resZOB,eff); 
+  its.AddLayer((char*)"dddX",  100.0 ,  x0OB, xRho, resRPhiOB, resZOB,eff); 
 
   
   its.SetAtLeastHits(4);

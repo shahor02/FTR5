@@ -50,8 +50,23 @@ Fast Simulation tool for Inner Tracker Systems
 
 ClassImp(KMCProbe)
 
-Int_t    KMCProbe::fgNITSLayers = 0;
+Int_t    KMCProbe::fgNLayers = 0;
 Double_t KMCProbe::fgMissingHitPenalty = 2.;
+
+
+//__________________________________________________________________________
+KMCProbe::KMCProbe() :
+  fMass(0.14),
+  fChi2(0),
+  fHits(0),
+  fFakes(0),
+  fNHits(0),
+  fNHitsFake(0),
+  fInnerChecked(-1),
+  fOuterChecked(-1)
+{
+}
+
 //__________________________________________________________________________
 KMCProbe& KMCProbe::operator=(const KMCProbe& src) 
 {
@@ -62,10 +77,9 @@ KMCProbe& KMCProbe::operator=(const KMCProbe& src)
     fHits = src.fHits;
     fFakes = src.fFakes;
     fNHits = src.fNHits;
-    fNHitsITS = src.fNHitsITS;
-    fNHitsITSFake = src.fNHitsITSFake;
-    fInnLrCheck     = src.fInnLrCheck;
-    for (int i=kMaxITSLr;i--;) fClID[i] = src.fClID[i];
+    fNHitsFake = src.fNHitsFake;
+    fInnerChecked     = src.fInnerChecked;
+    fOuterChecked     = src.fOuterChecked;
   }
   return *this;
 }
@@ -77,13 +91,24 @@ KMCProbe::KMCProbe(KMCProbe& src)
     fChi2(src.fChi2),
     fHits(src.fHits),
     fFakes(src.fFakes),
-    fNHits(src.fNHits),
-    fNHitsITS(src.fNHitsITS),
-    fNHitsITSFake(src.fNHitsITSFake),
-    fInnLrCheck(src.fInnLrCheck)
+    fNHits(src.fNHits),    
+    fNHitsFake(src.fNHitsFake),
+    fInnerChecked(src.fInnerChecked),
+    fOuterChecked(src.fOuterChecked)
 {
-  for (int i=kMaxITSLr;i--;) fClID[i] = src.fClID[i];
 }
+
+//__________________________________________________________________________
+void KMCProbe::Reset()
+{
+  fMass = 0.14;
+  fChi2 = 0;
+  fHits = fFakes = 0;
+  fNHits = fNHitsFake = 0;
+  fInnerChecked = fOuterChecked = -1;
+  AliExternalTrackParam::Reset();
+}
+
 
 //__________________________________________________________________________
 void KMCProbe::ResetCovMat()
@@ -104,32 +129,15 @@ void KMCProbe::ResetCovMat()
 //__________________________________________________________________________
 void KMCProbe::Print(Option_t* option) const
 {
-  printf("M=%.3f Chi2=%7.2f (Norm:%6.2f|%d) Hits: Total:%d ITS:%d ITSFakes:%d | Y:%+8.4f Z: %+8.4f |", 
-	 fMass,fChi2,GetNormChi2(kTRUE),fInnLrCheck,fNHits,fNHitsITS,fNHitsITSFake, GetY(),GetZ());
-  for (int i=0;i<fgNITSLayers;i++) {
+  printf("M=%.3f Chi2=%7.2f (Norm:%6.2f) Checked: %d-%d, Hits: Total:%d Fakes:%d | Y:%+8.4f Z: %+8.4f |", 
+	 fMass,fChi2,GetNormChi2(kTRUE),fInnerChecked,fOuterChecked, fNHits,fNHitsFake, GetY(),GetZ());
+  for (int i=0;i<fgNLayers;i++) {
     if (!IsHit(i)) printf(".");
     else printf("%c",IsHitFake(i) ? '-':'+');
   }
   printf("|%s\n",IsKilled() ? " KILLED":"");
   TString opt = option;
   if (!opt.IsNull()) AliExternalTrackParam::Print(option);
-}
-
-//__________________________________________________________________________
-Int_t KMCProbe::Compare(const TObject* obj) const
-{
-  // compare to tracks
-  const KMCProbe* trc = (KMCProbe*) obj;
-  if (trc->IsKilled()) {
-    if (IsKilled()) return 0;
-    return -1;
-  }
-  else if (IsKilled()) return 1;
-  double chi2a = GetNormChi2(kTRUE);
-  double chi2b = trc->GetNormChi2(kTRUE);
-  if (chi2a<chi2b) return  -1;
-  if (chi2a>chi2b) return   1;
-  return 0;
 }
 
 //__________________________________________________________________________
@@ -353,43 +361,21 @@ void KMCCluster::Print(Option_t *) const
 /////////////////////////////////////////////////////////////////////////////
 ClassImp(KMCLayer)
 
-Double_t KMCLayer::fgDefEff = 1.0;
 //__________________________________________________________________________
 KMCLayer::KMCLayer(char *name) : 
-  TNamed(name,name),fR(0),fx2X0(0),fPhiRes(0),fZRes(0),fEff(0),fIsDead(kFALSE),fType(-1),fActiveID(-1),fSig2EstD(999),fSig2EstZ(999),
-  fClCorr(),fClMC(),fClBg("KMCCluster",5), fTrCorr(), fTrMC("KMCProbe",5)
+  TNamed(name,name),fR(0),fx2X0(0),fPhiRes(0),fZRes(0),fEff(0),fIsDead(kFALSE),fActiveID(-1),fClMC()
 {
   Reset();
 }
 
 //__________________________________________________________________________
-void KMCLayer::Reset() 
-{
-  fTrCorr.Reset();
-  fClCorr.Reset();
-  ResetMC();
-  fSig2EstD = fSig2EstZ = 999;
-  //
-}
-
-//__________________________________________________________________________
-KMCProbe* KMCLayer::AddMCTrack(KMCProbe* src) 
-{
-  int ntr = GetNMCTracks(); 
-  KMCProbe* prb = 0;
-  if (src) prb = new(fTrMC[ntr]) KMCProbe(*src);
-  else     prb = new(fTrMC[ntr]) KMCProbe();
-  if (!IsDead()) prb->ResetHit(GetActiveID());
-  return prb;
-}
-
-//__________________________________________________________________________
 void KMCLayer::Print(Option_t *opt) const
 {
-  printf("Lr%3d(A%3d) %10s R=%5.1f X2X0=%.3f XRho=%.3f SigY=%.4f SigZ=%.4f Eff:%4.2f\n",GetUniqueID(),fActiveID,GetName(), fR, fx2X0,fXRho,fPhiRes,fZRes,fEff);
+  printf("Lr%3d(A%3d) %10s R=%5.1f X2X0=%.3f XRho=%.3f SigY=%.4f SigZ=%.4f Eff:%4.2f\n",
+	 GetUniqueID(),fActiveID,GetName(), fR, fx2X0,fXRho,fPhiRes,fZRes,fEff);
   TString opts = opt; opts.ToLower();
   if (opts.Contains("c")) {
-    printf("Clusters: MC: %+7.4f:%+7.4f Ideal: %+7.4f:%+7.4f  NBgCl: %3d NTrMC: %4d\n",fClMC.fY,fClMC.fZ, fClCorr.fY,fClCorr.fZ, GetNBgClusters(),GetNMCTracks());
+    printf("Cluster: MC: %+7.4f:%+7.4f\n",fClMC.fY,fClMC.fZ);
   }
 }
 
@@ -397,123 +383,50 @@ void KMCLayer::Print(Option_t *opt) const
 Double_t KMCDetector::fgVtxConstraint[2]={-1,-1};
 
 ClassImp(KMCDetector)
+
 KMCDetector::KMCDetector() :
 TNamed("test_detector","detector"),
   fNLayers(0),
   fNActiveLayers(0),
-  fNActiveITSLayers(0),
+  fFirstActiveLayer(-1),
   fLastActiveLayer(-1),
-  fLastActiveITSLayer(-1),
+  fFirstActiveLayerTracked(-1),
   fLastActiveLayerTracked(-1),
   fBFieldG(5.),
-  fLhcUPCscale(1.0),    
   fIntegrationTime(0.02), // in ms
-  fConfLevel(0.0027),      // 0.27 % -> 3 sigma confidence
-  fAvgRapidity(0.45),      // Avg rapidity, MCS calc is a function of crossing angle
-  fParticleMass(0.140),    // Standard: pion mass 
-  fMaxRadiusSlowDet(10.),
-  fAtLeastCorr(-1),     // if -1, then correct hit on all ITS layers
-  fAtLeastFake(1),       // if at least x fakes, track is considered fake ...
-  fdNdEtaCent(2300),
-  fMaxChi2Cl(25.),
-  fMaxNormChi2NDF(5.),
-  fMinITSHits(4),
-//
-  fMaxChi2ClSQ(4.), // precalulated internally
-  fMaxSeedToPropagate(300),
-//
-  fUseBackground(kFALSE),
-  fBgYMin(1e6),fBgYMax(-1e6),fBgZMin(1e6),fBgZMax(-1e6),
-  fBgYMinTr(100),fBgYMaxTr(100),fBgZMinTr(100),fBgZMaxTr(100),fNBgLimits(0),
-  fDensFactorEta(1.),
-//
-  fUpdCalls(0),
-  fHMCLrResidRPhi(0),
-  fHMCLrResidZ(0),
-  fHMCLrChi2(0),
-  fPattITS(0)
+  fdNdEtaCent(2000),       // Multiplicity
+  fDensFactorEta(1)
 {
   //
   // default constructor
   //
-  //  fLayers = new TObjArray();
-  RequireMaxChi2Cl(fMaxChi2Cl); // just to precalulate default square
 }
 
 KMCDetector::KMCDetector(char *name, char *title)
   : TNamed(name,title),
     fNLayers(0),
     fNActiveLayers(0),
-    fNActiveITSLayers(0),
+    fFirstActiveLayer(-1),
     fLastActiveLayer(-1),
-    fLastActiveITSLayer(-1),    
+    fFirstActiveLayerTracked(-1),
     fLastActiveLayerTracked(-1),
-    fBFieldG(5.0),
-    fLhcUPCscale(1.0),
-    fIntegrationTime(0.02),  // in ms
-    fConfLevel(0.0027),      // 0.27 % -> 3 sigma confidence
-    fAvgRapidity(0.45),      // Avg rapidity, MCS calc is a function of crossing angle
-    fParticleMass(0.140),     // Standard: pion mass
-    fMaxRadiusSlowDet(10.),
-    fAtLeastCorr(-1),     // if -1, then correct hit on all ITS layers
-    fAtLeastFake(1),       // if at least x fakes, track is considered fake ...
-    fdNdEtaCent(2300),
-    fMaxChi2Cl(9.),
-    fMaxNormChi2NDF(5.),
-    fMinITSHits(4),
-    //
-    fMaxChi2ClSQ(3.), // precalulated internally
-    fMaxSeedToPropagate(50),
-    //
-    fUseBackground(kFALSE),
-    fBgYMin(1e6),fBgYMax(-1e6),fBgZMin(1e6),fBgZMax(-1e6),
-    fBgYMinTr(100),fBgYMaxTr(100),fBgZMinTr(100),fBgZMaxTr(100),fNBgLimits(0),
-    fDensFactorEta(1.),
-    //
-    fUpdCalls(0),
-    fHMCLrResidRPhi(0),
-    fHMCLrResidZ(0),
-    fHMCLrChi2(0),
-    fPattITS(0)
+    fBFieldG(5.),
+    fIntegrationTime(0.02), // in ms
+    fdNdEtaCent(2000),       // Multiplicity
+    fDensFactorEta(1.)
+
 {
   //
   // default constructor, that set the name and title
   //
   //  fLayers = new TObjArray();
 }
+
 KMCDetector::~KMCDetector() { // 
   // virtual destructor
   //
   //  delete fLayers;
 }
-
-void KMCDetector::InitMCWatchHistos()
-{
-  // init utility histos used for MC tuning
-  enum {kNBinRes=1000};
-  const double kMaxResidRPhi=1.0,kMaxResidZ=1.0,kMaxChi2=50;
-  int nlr = fNActiveITSLayers;
-  TString nam = "mc_residrhi";
-  TString tit = "MC $Delta Cl-Tr R#phi";
-  fHMCLrResidRPhi = new TH2F(nam.Data(),tit.Data(),kNBinRes,-kMaxResidRPhi,kMaxResidRPhi,nlr,-0.5,nlr-0.5);
-  fHMCLrResidRPhi->GetXaxis()->SetTitle("cl-tr #Delta r#phi");
-  fHMCLrResidRPhi->Sumw2();
-    //
-  nam = "mc_residz";
-  tit = "MC $Delta Cl-Tr Z";
-  fHMCLrResidZ = new TH2F(nam.Data(),tit.Data(),kNBinRes,-kMaxResidRPhi,kMaxResidZ,nlr,-0.5,nlr-0.5);
-  fHMCLrResidZ->GetXaxis()->SetTitle("cl-tr #Delta z");
-  fHMCLrResidZ->Sumw2();
-    //
-  nam = "mc_chi2";
-  tit = "MC #chi^{2} Cl-Tr Z";
-  fHMCLrChi2 = new TH2F(nam.Data(),tit.Data(),kNBinRes,-kMaxResidRPhi,kMaxChi2,nlr,-0.5,nlr-0.5);
-  fHMCLrChi2->GetXaxis()->SetTitle("cl-tr #chi^{2}");
-  fHMCLrChi2->Sumw2();
-  //
-  SetBit(kUtilHisto);
-}
-
 
 void KMCDetector::AddLayer(char *name, Float_t radius, Float_t x2X0, Float_t xrho, Float_t phiRes, Float_t zRes, Float_t eff) {
   //
@@ -530,17 +443,12 @@ void KMCDetector::AddLayer(char *name, Float_t radius, Float_t x2X0, Float_t xrh
     newLayer->fPhiRes = phiRes;
     newLayer->fZRes = zRes;
     eff = TMath::Min(1.f,eff);
-    newLayer->fEff = eff <0 ? KMCLayer::GetDefEff() : eff;
+    newLayer->fEff = eff;
     newLayer->fActiveID = -2;
     TString lname = name;
-    newLayer->fType = KMCLayer::kTypeNA;
-    if      (lname.Contains("tpc")) newLayer->fType = KMCLayer::kTPC;
-    else if (lname.Contains("its")) newLayer->fType = KMCLayer::kITS;
     if (lname.Contains("vertex")) newLayer->SetBit(KMCLayer::kBitVertex);
     //
-    if (newLayer->fType==KMCLayer::kTypeNA) printf("Attention: the layer %s has undefined type\n",name);
-    //
-    newLayer->fIsDead =  (newLayer->fPhiRes==RIDICULOUS && newLayer->fZRes==RIDICULOUS);
+    newLayer->fIsDead =  (newLayer->fPhiRes<0 && newLayer->fZRes<0) || newLayer->fEff<=0.;
     //
     if (fLayers.GetEntries()==0) 
       fLayers.Add(newLayer);
@@ -565,10 +473,9 @@ void KMCDetector::AddLayer(char *name, Float_t radius, Float_t x2X0, Float_t xrh
 void KMCDetector::ClassifyLayers()
 {
   // assign active Id's, etc
-  fLastActiveLayer = -1;
-  fLastActiveITSLayer = -1;
+  fFirstActiveLayer = fLastActiveLayer = -1;
+
   fNActiveLayers = 0;
-  fNActiveITSLayers = 0;
   //
   int nl = GetNLayers();
   for (int il=0;il<nl;il++) {
@@ -576,304 +483,44 @@ void KMCDetector::ClassifyLayers()
     lr->SetUniqueID(il);
     if (!lr->IsDead()) {
       fLastActiveLayer = il; 
-      lr->fActiveID = fNActiveLayers++;
-      if (lr->IsITS()) {
-	fLastActiveITSLayer = il;
-	fNActiveITSLayers++;
-      }
+      if (fFirstActiveLayer<0) fFirstActiveLayer = il;
+      lr->SetActiveID(fNActiveLayers++);
     }
   }
   //
-  KMCProbe::SetNITSLayers(fNActiveITSLayers);
+  KMCProbe::SetNLayers(fNActiveLayers);
 }
 
-//____________________________________________________________
-void KMCDetector::KillLayer(char *name) {
-  //
-  // Marks layer as dead. Contribution only by Material Budget
-  //
 
-  KMCLayer *tmp = (KMCLayer*) fLayers.FindObject(name);
-  if (!tmp) 
-    printf("Layer %s not found - cannot mark as dead\n",name);
-  else {
-     tmp->fPhiRes = 999999;
-     tmp->fZRes = 999999;
-     tmp->fIsDead = kTRUE;
-     ClassifyLayers();
+//________________________________________________________________________________
+Int_t KMCDetector::GetLayerID(int actID) const
+{
+  // find physical layer id from active id
+  if (actID<0 || actID>fNActiveLayers) return -1;
+  for (int i=fLastActiveLayer; i--;) {
+    if (GetLayer(i)->GetActiveID()==actID) return i;   
   }
+  return -1;
 }
-
-void KMCDetector::SetRadius(char *name, Float_t radius) {
-  //
-  // Set layer radius [cm]
-  //
-  KMCLayer *tmp = (KMCLayer*) fLayers.FindObject(name);
-  //
-  if (!tmp) {
-    printf("Layer %s not found - cannot set radius\n",name);
-  } else {
-      
-    Float_t tmpRadL  = tmp->fx2X0;
-    Float_t tmpPhiRes = tmp->fPhiRes;
-    Float_t tmpZRes = tmp->fZRes;
-    Float_t tmpXRho = tmp->fXRho;
-    RemoveLayer(name); // so that the ordering is correct
-    AddLayer(name,radius,tmpRadL,tmpXRho,tmpPhiRes,tmpZRes);
-  }
-}
-
-Float_t KMCDetector::GetRadius(char *name) {
-  //
-  // Return layer radius [cm]
-  //
-
-  KMCLayer *tmp = (KMCLayer*) fLayers.FindObject(name);
-  if (!tmp) 
-    printf("Layer %s not found - cannot get radius\n",name);
-  else 
-    return tmp->fR;
-
-  return 0;
-}
-
-void KMCDetector::SetRadiationLength(char *name, Float_t x2X0) {
-  //
-  // Set layer material [cm]
-  //
-
-  KMCLayer *tmp = (KMCLayer*) fLayers.FindObject(name);
-  if (!tmp) 
-    printf("Layer %s not found - cannot set layer material\n",name);
-  else {
-    tmp->fx2X0 = x2X0;
-  }
-}
-
-Float_t KMCDetector::GetRadiationLength(char *name) {
-  //
-  // Return layer radius [cm]
-  //
-
-  KMCLayer *tmp = (KMCLayer*) fLayers.FindObject(name);
-  if (!tmp) 
-    printf("Layer %s not found - cannot get layer material\n",name);
-  else 
-    return tmp->fx2X0;
-    
-  return 0;
-  
-}
-
-void KMCDetector::SetResolution(char *name, Float_t phiRes, Float_t zRes) {
-  //
-  // Set layer resolution in [cm]
-  //
-
-  KMCLayer *tmp = (KMCLayer*) fLayers.FindObject(name);
-  if (!tmp) 
-    printf("Layer %s not found - cannot set resolution\n",name);
-  else {
-    tmp->fPhiRes = phiRes;
-    tmp->fZRes = zRes;
-    tmp->fIsDead = (zRes==RIDICULOUS && phiRes==RIDICULOUS);
-    ClassifyLayers();
-  }
-}
-
-Float_t KMCDetector::GetResolution(char *name, Int_t axis) {
-  //
-  // Return layer resolution in [cm]
-  // axis = 0: resolution in rphi
-  // axis = 1: resolution in z
-  //
-
-  KMCLayer *tmp = GetLayer(name);
-  if (!tmp) 
-    printf("Layer %s not found - cannot get resolution\n",name);
-  else {
-    if (axis==0) return tmp->fPhiRes;
-    if (axis==1) return tmp->fZRes;
-    printf("error: axis must be either 0 or 1 (rphi or z axis)\n");
-  }
-  return 0;
-}
-
-void KMCDetector::SetLayerEfficiency(char *name, Float_t eff) {
-  //
-  // Set layer efficnecy (prop that his is missed within this layer) 
-  //
-
-  KMCLayer *tmp = (KMCLayer*) fLayers.FindObject(name);
-  if (!tmp) 
-    printf("Layer %s not found - cannot set layer efficiency\n",name);
-  else {
-    tmp->fEff = eff;
-  }
-}
-
-Float_t KMCDetector::GetLayerEfficiency(char *name) {
-  //
-  // Get layer efficnecy (prop that his is missed within this layer) 
-  //
-
-  KMCLayer *tmp = (KMCLayer*) fLayers.FindObject(name);
-  if (!tmp) 
-    printf("Layer %s not found - cannot get layer efficneicy\n",name);
-  else 
-    return tmp->fEff;
-    
-  return 0;
-  
-}
-
-void KMCDetector::RemoveLayer(char *name) {
-  //
-  // Removes a layer from the list
-  //
-
-  KMCLayer *tmp = (KMCLayer*) fLayers.FindObject(name);
-  if (!tmp) 
-    printf("Layer %s not found - cannot remove it\n",name);
-  else {
-    fLayers.Remove(tmp);
-    ClassifyLayers();
-  }
-}
-
 
 void KMCDetector::PrintLayout() {
   //
   // Prints the detector layout
   //
-
   printf("Detector %s: \"%s\"\n",GetName(),GetTitle());
   
-  if (fLayers.GetEntries()>0) 
-    printf("  Name \t\t r [cm] \t  X0 \t  phi & z res [um]\n");
+  if (fLayers.GetEntries()>0)  printf("  Name \t\t r [cm] \t  X0 \t  phi & z res [um]\n");
 
-  KMCLayer *tmp = 0;
   for (Int_t i = 0; i<fLayers.GetEntries(); i++) {
-    tmp = (KMCLayer*)fLayers.At(i);
-  
-    // don't print all the tpc layers
-    TString name(tmp->GetName());
-    if (name.Contains("tpc") && (!name.Contains("tpc_0")) ) continue;
-
-    printf("%d. %s \t %03.2f   \t%1.4f\t  ",i,
- 	   tmp->GetName(), tmp->fR, tmp->fx2X0);
-    if (tmp->fPhiRes==RIDICULOUS) 
-      printf("  -  ");
-    else
-      printf("%3.0f   ",tmp->fPhiRes*10000);
-    if (tmp->fZRes==RIDICULOUS) 
-      printf("  -\n");
-    else
-      printf("%3.0f\n",tmp->fZRes*10000);
-  }
-}
-
-void KMCDetector::PlotLayout(Int_t plotDead) {
-  //
-  // Plots the detector layout in Front view
-  //
-
-  Double_t x0=0, y0=0;
-
-  TGraphErrors *gr = new TGraphErrors();
-  gr->SetPoint(0,0,0);
-  KMCLayer *lastLayer = (KMCLayer*)fLayers.At(fLayers.GetEntries()-1);  Double_t maxRad = lastLayer->fR;
-  gr->SetPointError(0,maxRad,maxRad);
-  gr->Draw("APE");
-  
-
-  KMCLayer *tmp = 0;
-  for (Int_t i = fLayers.GetEntries()-1; i>=0; i--) {
-    tmp = (KMCLayer*)fLayers.At(i);
-  
-
-    Double_t txtpos = tmp->fR;
-    if ((tmp->IsDead())) txtpos*=-1; //
-    TText *txt = new TText(x0,txtpos,tmp->GetName());
-    txt->SetTextSizePixels(5); txt->SetTextAlign(21);
-    if (!tmp->IsDead() || plotDead) txt->Draw();
-
-    TEllipse *layEl = new TEllipse(x0,y0,tmp->fR);
-    //  layEl->SetFillColor(5);
-    layEl->SetFillStyle(5001);
-    layEl->SetLineStyle(tmp->IsDead()+1); // dashed if not active
-    layEl->SetLineColor(4);
-    TString name(tmp->GetName());
-    if (!tmp->IsDead()) layEl->SetLineWidth(2);
-    if (name.Contains("tpc") )  layEl->SetLineColor(29);
-
-    if (!tmp->IsDead() || plotDead) layEl->Draw();
-  
-  }
-
-}
-
-
-
-void KMCDetector::AddTPC(Float_t phiResMean, Float_t zResMean, Int_t skip) {
-  //
-  // Emulates the TPC
-  // 
-  // skip=1: Use every padrow, skip=2: Signal in every 2nd padrow 
-
-
-  AddLayer((char*)"IFCtpc",   77.8,0.01367, 0); // Inner Field cage (RS: set correct xrho for eloss)
-  
-  // % Radiation Lengths ... Average per TPC row  (i.e. total/159 )
-  Float_t x2X0PerRow = 0.000036;
-  
-  Float_t tpcInnerRadialPitch  =    0.75 ;    // cm
-  Float_t tpcMiddleRadialPitch =    1.0  ;    // cm
-  Float_t tpcOuterRadialPitch  =    1.5  ;    // cm
-  //  Float_t tpcInnerPadWidth     =    0.4  ;    // cm
-  //  Float_t tpcMiddlePadWidth    =    0.6   ;   // cm
-  //  Float_t tpcOuterPadWidth     =    0.6   ;   // cm
-  Float_t innerRows            =   63 ;
-  Float_t middleRows           =   64  ;
-  Float_t outerRows            =   32  ;
-  Float_t tpcRows            =   (innerRows + middleRows + outerRows) ;
-  Float_t rowOneRadius         =   85.2  ;    // cm
-  Float_t row64Radius          =  135.1  ;    // cm
-  Float_t row128Radius         =  199.2  ;    // cm                       
- 
-  for ( Int_t k = 0 ; k < tpcRows ; k++ ) {
+    KMCLayer* tmp = (KMCLayer*)fLayers.At(i);
     
-    Float_t rowRadius =0;
-    if (k<innerRows) 
-      rowRadius =  rowOneRadius + k*tpcInnerRadialPitch ;
-    else if ( k>=innerRows && k<(innerRows+middleRows) )
-      rowRadius =  row64Radius + (k-innerRows+1)*tpcMiddleRadialPitch ;
-    else if (k>=(innerRows+middleRows) && k<tpcRows )
-      rowRadius = row128Radius + (k-innerRows-middleRows+1)*tpcOuterRadialPitch ;
-
-    if ( k%skip == 0 )
-      AddLayer(Form("tpc_%d",k),rowRadius,x2X0PerRow,0, phiResMean,zResMean);    
-    else 
-      AddLayer(Form("tpc_%d",k),rowRadius,x2X0PerRow,0); // non "active" row
-    
-  
+    printf("%d. %s \t %03.2f   \t%1.4f\t  ",i, tmp->GetName(), tmp->GetRadius(), tmp->GetRadL() );
+    if (tmp->IsDead()) printf("  -  ");
+    else               printf("%3.0f   ",tmp->GetPhiRes()*10000);
+    if (tmp->IsDead()) printf("  -\n");
+    else               printf("%3.0f\n",tmp->GetZRes()*10000);
   }
- 
 }
-
-void KMCDetector::RemoveTPC() {
-
-  // flag as dead, although resolution is ok ... makes live easier in the prints ... ;-)
-  KMCLayer *tmp = 0;
-  for (Int_t i = 0; i<fLayers.GetEntries(); i++) {
-    tmp = (KMCLayer*)fLayers.At(i);  
-    TString name(tmp->GetName());
-    if (name.Contains("tpc")) { RemoveLayer((char*)name.Data()); i--; }
-  }
-  RemoveLayer((char*)"IFC");
-  
-}
-
 
 Double_t KMCDetector::ThetaMCS ( Double_t mass, Double_t x2X0, Double_t momentum ) const
 {
@@ -887,7 +534,6 @@ Double_t KMCDetector::ThetaMCS ( Double_t mass, Double_t x2X0, Double_t momentum
   if ( x2X0 > 0 ) theta  =  0.0136 * TMath::Sqrt(x2X0) / ( beta * momentum ) * (1+0.038*TMath::Log(x2X0)) ;
   return (theta) ;
 }
-
 
 Double_t KMCDetector::ProbGoodHit ( Double_t radius, Double_t searchRadiusRPhi, Double_t searchRadiusZ ) 
 {
@@ -912,29 +558,32 @@ Double_t KMCDetector::ProbGoodChiSqHit ( Double_t radius, Double_t searchRadiusR
   return ( goodHit ) ;  
 }
 
-Double_t KMCDetector::ProbGoodChiSqPlusConfHit ( Double_t radius, Double_t leff, Double_t searchRadiusRPhi, Double_t searchRadiusZ ) 
+Double_t KMCDetector::ProbGoodChiSqPlusConfHit ( Double_t radius, Double_t leff,
+						 Double_t searchRadiusRPhi, Double_t searchRadiusZ, double confLevel) 
 {
   // Based on work by Ruben Shahoyen 
   // This is the probability of getting a good hit using a Chi**2 search on a 2D Gaussian distribution function
   // Plus, in addition, taking a "confidence level" and the "layer efficiency" into account 
   // Following is correct for 2 DOF
 
-  Double_t c = -2 *TMath::Log(fConfLevel); // quantile at cut of confidence level
+  Double_t c = -2 *TMath::Log(confLevel); // quantile at cut of confidence level
   Double_t alpha = (1 + 2 * TMath::Pi() * HitDensity(radius) * searchRadiusRPhi * searchRadiusZ)/2; 
   Double_t goodHit = leff/(2*alpha) * (1 - TMath::Exp(-alpha*c));
   return ( goodHit ) ;  
 }
 
-Double_t KMCDetector::ProbNullChiSqPlusConfHit ( Double_t radius, Double_t leff, Double_t searchRadiusRPhi, Double_t searchRadiusZ ) 
+Double_t KMCDetector::ProbNullChiSqPlusConfHit ( Double_t radius, Double_t leff,
+						 Double_t searchRadiusRPhi, Double_t searchRadiusZ, double confLevel) 
 {
-  // Based on work by Ruben Shahoyen 
+  // Based on work by Ruben Shahoyan 
   // This is the probability to not have any match to the track (see also :ProbGoodChiSqPlusConfHit:)
 
-  Double_t c = -2 *TMath::Log(fConfLevel); // quantile at cut of confidence level
+  Double_t c = -2 *TMath::Log(confLevel); // quantile at cut of confidence level
   Double_t alpha = (1 + 2 * TMath::Pi() * HitDensity(radius) * searchRadiusRPhi * searchRadiusZ)/2; 
-  Double_t nullHit = (1-leff+fConfLevel*leff)*TMath::Exp(-c*(alpha-1./2));
+  Double_t nullHit = (1-leff+confLevel*leff)*TMath::Exp(-c*(alpha-1./2));
   return ( nullHit ) ;  
 }
+
 
 Double_t KMCDetector::HitDensity ( Double_t radius ) 
 {
@@ -945,28 +594,11 @@ Double_t KMCDetector::HitDensity ( Double_t radius )
   // Based on work by Yan Lu 12/20/2006, all radii and densities in centimeters or cm**2.
 
   //  Double_t MaxRadiusSlowDet = 0.1; //?   // Maximum radius for slow detectors.  Fast detectors 
-                                        // and only fast detectors reside outside this radius.
-  Double_t arealDensity = 0 ;
   if (radius<0.01) return 0;
-
-  if ( radius >= fMaxRadiusSlowDet ) 
-    {
-      arealDensity  = OneEventHitDensity(fdNdEtaCent,radius)  ; // Fast detectors see central collision density (only)
-      arealDensity += OtherBackground*OneEventHitDensity(dNdEtaMinB,radius)  ;  // Increase density due to background 
-    }
-
-  if (radius < fMaxRadiusSlowDet )
-    { // Note that IntegratedHitDensity will always be minB one event, or more, even if integration time => zero.
-      arealDensity  = OneEventHitDensity(fdNdEtaCent,radius) 
-	            + IntegratedHitDensity(dNdEtaMinB,radius) 
-	            + UpcHitDensity(radius) ;
-      arealDensity += OtherBackground*IntegratedHitDensity(dNdEtaMinB,radius) ;  
-      // Increase density due to background 
-    } 
-
+  //
+  double arealDensity  = OneEventHitDensity(fdNdEtaCent,radius)  + UpcHitDensity(radius) ;
   return ( arealDensity ) ;  
 }
-
 
 double KMCDetector::OneEventHitDensity( Double_t multiplicity, Double_t radius ) const
 {
@@ -977,857 +609,28 @@ double KMCDetector::OneEventHitDensity( Double_t multiplicity, Double_t radius )
   return den ;
 } 
 
-
-double KMCDetector::IntegratedHitDensity(Double_t multiplicity, Double_t radius)
-{ 
-  // The integral of minBias events smeared over a gaussian vertex distribution.
-  // Based on work by Yan Lu 12/20/2006, all radii in centimeters.
-
-  Double_t zdcHz = Luminosity * 1.e-24 * CrossSectionMinB ;
-  Double_t den   = zdcHz * fIntegrationTime/1000. * multiplicity * Dist(0., radius) / (2.*TMath::Pi()*radius) ;
-
-  // Note that we do not allow the rate*time calculation to fall below one minB event at the vertex.
-  double dens1 = OneEventHitDensity(multiplicity,radius);
-  if ( den < dens1 )  den = dens1;
-
-  return den ;
-} 
-
-
 double KMCDetector::UpcHitDensity(Double_t radius)
 { 
   // QED electrons ...
 
-  Double_t mUPCelectrons ;                                 ;  
+  Double_t mUPCelectrons = 0;
+  /*
   //  mUPCelectrons =  fLhcUPCscale * (1.23 - radius/6.5)      ;  // Fit to Kai Schweda summary tables at RHIC * 'scale' for LHC
   mUPCelectrons = fLhcUPCscale*5456/(radius*radius)/dNdEtaMinB;      // Fit to 'Rossegger,Sadovsky'-Alice simulation
   if ( mUPCelectrons < 0 ) mUPCelectrons =  0.0             ;  // UPC electrons fall off quickly and don't go to large R
   mUPCelectrons *= IntegratedHitDensity(dNdEtaMinB,radius) ;  // UPCs increase Mulitiplicty ~ proportional to MinBias rate
   mUPCelectrons *= UPCBackgroundMultiplier                 ;  // Allow for an external multiplier (eg 0-1) to turn off UPC
-
+  */
   return mUPCelectrons ;
-} 
+}
 
-
-double KMCDetector::Dist(double z, double r)
+void KMCDetector::CalcDensFactorEta(double eta)
 {
-  // Convolute dEta/dZ  distribution with assumed Gaussian of vertex z distribution
-  // Based on work by Howard Wieman http://rnc.lbl.gov/~wieman/HitDensityMeasuredLuminosity7.htm
-  // Based on work by Yan Lu 12/20/2006, all radii and Z location in centimeters.
-  Int_t    index  =  1     ;     // Start weight at 1 for Simpsons rule integration
-  Int_t    nsteps =  301   ;     // NSteps must be odd for Simpson's rule to work
-  double   dist   =  0.0   ;
-  double   dz0    =  ( 4*SigmaD - (-4)*SigmaD ) / (nsteps-1)  ;  //cm
-  double    z0    =  0.0   ;     //cm
-  for(int i=0; i<nsteps; i++){
-    if ( i == nsteps-1 ) index = 1 ;
-    z0 = -4*SigmaD + i*dz0 ;
-    dist += index * (dz0/3.) * (1/sqrt(2.*TMath::Pi())/SigmaD) * exp(-z0*z0/2./SigmaD/SigmaD) * 
-      (1/sqrt((z-z0)*(z-z0) + r*r)) ;
-    if ( index != 4 ) index = 4; else index = 2 ;
+  if (TMath::Abs(eta)<1e-3) fDensFactorEta = 1.;
+  else {
+    fDensFactorEta = TMath::Tan( 2.*TMath::ATan(TMath::Exp(-TMath::Abs(eta))) );
+    fDensFactorEta = 1./TMath::Sqrt( 1. + 1./fDensFactorEta/fDensFactorEta);
   }
-  return dist; 
-}
-
-#define  PZero   0.861  // Momentum of back to back decay particles in the CM frame
-#define  EPiZero 0.872  // Energy of the pion from a D0 decay at rest
-#define  EKZero  0.993  // Energy of the Kaon from a D0 decay at rest
-
-Double_t KMCDetector::D0IntegratedEfficiency( Double_t pt, Double_t corrEfficiency[][20] ) const {
-  // Math from Ron Longacre.  Note hardwired energy to bin conversion for PtK and PtPi.
-
-  Double_t const1  =  pt / D0Mass ;
-  Double_t const2  =  TMath::Sqrt(pt*pt+D0Mass*D0Mass) / D0Mass ;
-  Double_t sum, ptPi, ptK ;
-  Double_t effp, effk ;
-
-  sum = 0.0 ;
-  for ( Int_t k = 0 ; k < 360 ; k++ )   {
-    
-    Double_t theta = k * TMath::Pi() / 180. ;
-    
-    ptPi = TMath::Sqrt( 
-		       PZero*PZero*TMath::Cos(theta)*TMath::Cos(theta)*const2*const2 +
-		       const1*const1*EPiZero*EPiZero -
-		       2*PZero*TMath::Cos(theta)*const2*const1*EPiZero +
-		       PZero*PZero*TMath::Sin(theta)*TMath::Sin(theta)
-		       ) ;
-    
-    ptK = TMath::Sqrt( 
-		      PZero*PZero*TMath::Cos(theta)*TMath::Cos(theta)*const2*const2 +
-		      const1*const1*EKZero*EKZero +
-		      2*PZero*TMath::Cos(theta)*const2*const1*EKZero +
-		      PZero*PZero*TMath::Sin(theta)*TMath::Sin(theta)
-		      ) ;
-
-    // JT Test Remove 100 MeV/c in pt to simulate eta!=0 decays
-    Int_t pionindex = (int)((ptPi-0.1)*100.0 - 65.0*TMath::Abs(fBFieldG)) ; 
-    Int_t kaonindex = (int)((ptK -0.1)*100.0 - 65.0*TMath::Abs(fBFieldG)) ; 
-      
-    if ( pionindex >= 20 ) pionindex = 399 ;
-    if ( pionindex >= 0 )   effp = corrEfficiency[0][pionindex] ;
-    if ( pionindex <  0 )   effp = (corrEfficiency[0][1]-corrEfficiency[0][0])*pionindex + corrEfficiency[0][0] ; // Extrapolate if reqd
-    if ( effp < 0 )         effp = 0 ;
-
-    if ( kaonindex >= 20 ) kaonindex = 399 ;
-    if ( kaonindex >= 0 )   effk = corrEfficiency[1][kaonindex] ;
-    if ( kaonindex <  0 )   effk = (corrEfficiency[1][1]-corrEfficiency[1][0])*kaonindex + corrEfficiency[1][0] ; // Extrapolate if reqd
-    if ( effk < 0 )         effk = 0 ;
-
-    // Note that we assume that the Kaon Decay efficiency has already been inlcuded in the kaon efficiency used here.
-      
-    sum += effp * effk ;
- 
-  }    
-  
-  Double_t mean =sum/360; 
-  return mean ;
-  
-}
-
-KMCProbe* KMCDetector::PrepareKalmanTrack(double pt, double lambda, double mass, int charge, double phi, double x,double y, double z)
-{
-  // Prepare trackable Kalman track at the farthest position
-  //
-  // Set track parameters
-  // Assume track started at (0,0,0) and shoots out on the X axis, and B field is on the Z axis
-  fProbe.Reset();
-  fProbe.SetMass(mass);
-  KMCProbe* probe = new KMCProbe(fProbe);
-  double *trPars = (double*)probe->GetParameter();
-  double *trCov  = (double*)probe->GetCovariance();
-  double xyz[3] = {x,y,z};
-  probe->Global2LocalPosition(xyz,phi);
-  probe->Set(xyz[0],phi,trPars,trCov);
-  trPars[KMCProbe::kY] = xyz[1];
-  trPars[KMCProbe::kZ] = xyz[2];
-  trPars[KMCProbe::kSnp] = 0;                       //            track along X axis at the vertex
-  trPars[KMCProbe::kTgl] = TMath::Tan(lambda);                // dip
-  trPars[KMCProbe::kPtI] = charge/pt;               //            q/pt      
-  //
-  // put tiny errors to propagate to the outer-most radius
-  trCov[KMCProbe::kY2] = trCov[KMCProbe::kZ2] = trCov[KMCProbe::kSnp2] = trCov[KMCProbe::kTgl2] = trCov[KMCProbe::kPtI2] = 1e-20;
-  fProbe = *probe;  // store original track
-  //
-  // propagate to last layer layer reachable with max snp
-  fFirstActiveLayerTracked = -1;
-  fLastActiveLayerTracked = 0;
-  Bool_t res = TransportKalmanTrackWithMS(&probe);
-  double r = TMath::Sqrt(x*x+y*y);
-  for (Int_t j=0; j<=fLastActiveLayer; j++) {
-    KMCLayer* lr = GetLayer(j);
-    lr->Reset();
-    //
-    if (lr->GetRadius()>r) continue;
-    if (!PropagateToLayer(probe,lr,1)) break;
-    if (!probe->CorrectForMeanMaterial(lr, kFALSE)) break;
-    //
-    lr->fClCorr.Set(probe->GetY(),probe->GetZ(), probe->GetX(), probe->GetAlpha());
-    if (!lr->IsDead()) fLastActiveLayerTracked = j;
-  }
-  probe->ResetCovMat();// reset cov.matrix
-
-  //
-  return probe;
-}
-
-
-
-TGraph * KMCDetector::GetGraphMomentumResolution(Int_t color, Int_t linewidth) {
-  //
-  // returns the momentum resolution 
-  //
-  
-  TGraph *graph = new TGraph(20, fTransMomenta, fMomentumRes);
-  graph->SetTitle("Momentum Resolution .vs. Pt" ) ;
-  //  graph->GetXaxis()->SetRangeUser(0.,5.0) ;
-  graph->GetXaxis()->SetTitle("Transverse Momentum (GeV/c)") ;
-  graph->GetXaxis()->CenterTitle();
-  graph->GetXaxis()->SetNoExponent(1) ;
-  graph->GetXaxis()->SetMoreLogLabels(1) ;
-  graph->GetYaxis()->SetTitle("Momentum Resolution (%)") ;
-  graph->GetYaxis()->CenterTitle();
-
-  graph->SetMaximum(20) ;
-  graph->SetMinimum(0.1) ;
-  graph->SetLineColor(color);
-  graph->SetMarkerColor(color);
-  graph->SetLineWidth(linewidth);
-
-  return graph;
-
-}
-
-TGraph * KMCDetector::GetGraphPointingResolution(Int_t axis, Int_t color, Int_t linewidth) {
- 
-  // Returns the pointing resolution
-  // axis = 0 ... rphi pointing resolution
-  // axis = 1 ... z pointing resolution
-  //
-
-  TGraph * graph =  0;
-
-  if (axis==0) {
-    graph = new TGraph ( 20, fTransMomenta, fResolutionRPhi ) ;
-    graph->SetTitle("R-#phi Pointing Resolution .vs. Pt" ) ;
-    graph->GetYaxis()->SetTitle("R-#phi Pointing Resolution (#mum)") ;
-  } else {
-    graph =  new TGraph ( 20, fTransMomenta, fResolutionZ ) ;
-    graph->SetTitle("Z Pointing Resolution .vs. Pt" ) ;
-    graph->GetYaxis()->SetTitle("Z Pointing Resolution (#mum)") ;
-  }
-  
-  graph->SetMinimum(1) ;
-  graph->SetMaximum(300.1) ;
-  graph->GetXaxis()->SetTitle("Transverse Momentum (GeV/c)") ;
-  graph->GetXaxis()->CenterTitle();
-  graph->GetXaxis()->SetNoExponent(1) ;
-  graph->GetXaxis()->SetMoreLogLabels(1) ;
-  graph->GetYaxis()->CenterTitle();
-  
-  graph->SetLineWidth(linewidth);
-  graph->SetLineColor(color);
-  graph->SetMarkerColor(color);
-  
-  return graph;
-
-}
-
-
-TGraph * KMCDetector::GetGraphPointingResolutionTeleEqu(Int_t axis,Int_t color, Int_t linewidth) {
-  //
-  // returns the Pointing resolution (accoring to Telescope equation)
-  // axis =0 ... in rphi
-  // axis =1 ... in z
-  //
-  
-  Double_t resolution[20];
-
-  Double_t layerResolution[2];
-  Double_t layerRadius[2];
-  Double_t layerThickness[2];
-
-  Int_t count =0; // search two first active layers
-  printf("Telescope equation for layers:  ");
-  for (Int_t i = 0; i<fLayers.GetEntries(); i++) {
-    KMCLayer *l = (KMCLayer*)fLayers.At(i);
-    if (!l->IsDead() && l->fR>0) {
-      layerRadius[count]     = l->fR;
-      layerThickness[count]  = l->fx2X0;
-      if (axis==0) {
-	layerResolution[count] = l->fPhiRes;
-      } else {
-	layerResolution[count] = l->fZRes;
-      }
-      printf("%s, ",l->GetName());
-      count++;
-    }
-    if (count>=2) break;	
-  }
-  printf("\n");
-
-  Double_t pt, momentum, thickness,aMCS ;
-  Double_t lambda = TMath::Pi()/2.0 - 2.0*TMath::ATan(TMath::Exp(-1*fAvgRapidity)); 
-
-  for ( Int_t i = 0 ; i < 20 ; i++ ) { 
-    // Reference data as if first two layers were acting all alone 
-    pt  =  fTransMomenta[i]  ;
-    momentum = pt / TMath::Cos(lambda)   ;  // Total momentum
-    resolution[i] =  layerResolution[0]*layerResolution[0]*layerRadius[1]*layerRadius[1] 
-      +  layerResolution[1]*layerResolution[1]*layerRadius[0]*layerRadius[0] ;
-    resolution[i] /= ( layerRadius[1] - layerRadius[0] ) * ( layerRadius[1] - layerRadius[0] ) ;
-    thickness = layerThickness[0] / TMath::Sin(TMath::Pi()/2 - lambda) ;
-    aMCS = ThetaMCS(fParticleMass, thickness, momentum) ;
-    resolution[i] += layerRadius[0]*layerRadius[0]*aMCS*aMCS ;
-    resolution[i] =  TMath::Sqrt(resolution[i]) * 10000.0 ;  // result in microns
-  }
-
-
-
-  TGraph* graph = new TGraph ( 20, fTransMomenta, resolution ) ;
-   
-  if (axis==0) {
-    graph->SetTitle("RPhi Pointing Resolution .vs. Pt" ) ;
-    graph->GetYaxis()->SetTitle("RPhi Pointing Resolution (#mum) ") ;
-  } else {
-    graph->SetTitle("Z Pointing Resolution .vs. Pt" ) ;
-    graph->GetYaxis()->SetTitle("Z Pointing Resolution (#mum) ") ;
-  }
-  graph->SetMinimum(1) ;
-  graph->SetMaximum(300.1) ;
-  graph->GetXaxis()->SetTitle("Transverse Momentum (GeV/c)") ;
-  graph->GetXaxis()->CenterTitle();
-  graph->GetXaxis()->SetNoExponent(1) ;
-  graph->GetXaxis()->SetMoreLogLabels(1) ;
-  graph->GetYaxis()->CenterTitle();
-  
-  graph->SetLineColor(color);
-  graph->SetMarkerColor(color);
-  graph->SetLineStyle(kDashed);
-  graph->SetLineWidth(linewidth);
-
-  return graph;
-
-}
-
-TGraph * KMCDetector::GetGraphRecoEfficiency(Int_t particle,Int_t color, Int_t linewidth) {
-  //
-  // particle = 0 ... choosen particle (setted particleMass)
-  // particle = 1 ... Pion
-  // particle = 2 ... Kaon
-  // particle = 3 ... D0
-  //
-  Double_t lambda = TMath::Pi()/2.0 - 2.0*TMath::ATan(TMath::Exp(-1*fAvgRapidity)); 
-  
-  Double_t particleEfficiency[20]; // with chosen particle mass
-  Double_t kaonEfficiency[20], pionEfficiency[20], d0efficiency[20]; 
-  Double_t partEfficiency[2][20];
-  
-  if (particle != 0) {
-    // resulting Pion and Kaon efficiency scaled with overall efficiency
-    Double_t doNotDecayFactor;
-    for ( Int_t massloop = 0 ; massloop < 2 ; massloop++) { //0-pion, 1-kaon
-      
-      for ( Int_t j = 0 ; j < 20 ; j++ ) { 
-	// JT Test Let the kaon decay.  If it decays inside the TPC ... then it is gone; for all decays < 130 cm.
-	Double_t momentum = fTransMomenta[j] / TMath::Cos(lambda)           ;  // Total momentum at average rapidity
-	if ( massloop == 1 ) { // KAON
-	  doNotDecayFactor  = TMath::Exp(-130/(371*momentum/KaonMass)) ;  // Decay length for kaon is 371 cm.
-	  kaonEfficiency[j] = fEfficiency[1][j] * AcceptanceOfTpcAndSi*doNotDecayFactor ;
-	} else { // PION
-	  doNotDecayFactor = 1.0 ;
-	  pionEfficiency[j] = fEfficiency[0][j] * AcceptanceOfTpcAndSi*doNotDecayFactor ;	
-	}
-	partEfficiency[0][j] = pionEfficiency[j];
-	partEfficiency[1][j] = kaonEfficiency[j];
-      }      
-    }
-    
-    // resulting estimate of the D0 efficiency
-    for ( Int_t j = 0 ; j < 20 ; j++ ) {
-      d0efficiency[j] = D0IntegratedEfficiency(fTransMomenta[j],partEfficiency);
-    }
-  } else { 
-    for ( Int_t j = 0 ; j < 20 ; j++ ) { 
-      particleEfficiency[j] = fEfficiency[2][j]* AcceptanceOfTpcAndSi;
-      // NOTE: Decay factor (see kaon) should be included to be realiable
-    }
-  }
-
-  for ( Int_t j = 0 ; j < 20 ; j++ ) { 
-    pionEfficiency[j]     *= 100;
-    kaonEfficiency[j]     *= 100;
-    d0efficiency[j]       *= 100;
-    particleEfficiency[j] *= 100;
-  }
- 
-  TGraph * graph =  0;
-  if (particle==0) {
-    graph = new TGraph ( 20, fTransMomenta, particleEfficiency ) ; // choosen mass
-    graph->SetLineWidth(1);
-  }  else if (particle==1) {
-    graph = new TGraph ( 20, fTransMomenta, pionEfficiency ) ;
-    graph->SetLineWidth(1);
-  }  else if (particle ==2) {
-    graph = new TGraph ( 20, fTransMomenta, kaonEfficiency ) ;
-    graph->SetLineWidth(1);
-  }  else if (particle ==3) {
-    graph = new TGraph ( 20, fTransMomenta, d0efficiency ) ;
-    graph->SetLineStyle(kDashed);
-  } else 
-    return 0;
-
-  graph->GetXaxis()->SetTitle("Transverse Momentum (GeV/c)") ;
-  graph->GetXaxis()->CenterTitle();
-  graph->GetXaxis()->SetNoExponent(1) ;
-  graph->GetXaxis()->SetMoreLogLabels(1) ;
-  graph->GetYaxis()->SetTitle("Efficiency (%)") ;
-  graph->GetYaxis()->CenterTitle();
-	  
-  graph->SetMinimum(0.01) ; 
-  graph->SetMaximum(100)  ; 
-
-  graph->SetLineColor(color);
-  graph->SetMarkerColor(color);
-  graph->SetLineWidth(linewidth);
-
-  return graph;
-}
-
-TGraph * KMCDetector::GetGraphRecoFakes(Int_t particle,Int_t color, Int_t linewidth) {
-  //
-  // particle = 0 ... choosen particle (setted particleMass)
-  // particle = 1 ... Pion
-  // particle = 2 ... Kaon
-  //
-
-  Double_t lambda = TMath::Pi()/2.0 - 2.0*TMath::ATan(TMath::Exp(-1*fAvgRapidity)); 
-  
-  Double_t particleFake[20]; // with chosen particle mass
-  Double_t kaonFake[20], pionFake[20];
-  Double_t partFake[2][20];
-  
-  if (particle != 0) {
-    // resulting Pion and Kaon efficiency scaled with overall efficiency
-    Double_t doNotDecayFactor;
-    for ( Int_t massloop = 0 ; massloop < 2 ; massloop++) { //0-pion, 1-kaon
-      
-      for ( Int_t j = 0 ; j < 20 ; j++ ) { 
-	// JT Test Let the kaon decay.  If it decays inside the TPC ... then it is gone; for all decays < 130 cm.
-	Double_t momentum = fTransMomenta[j] / TMath::Cos(lambda)           ;  // Total momentum at average rapidity
-	if ( massloop == 1 ) { // KAON
-	  doNotDecayFactor  = TMath::Exp(-130/(371*momentum/KaonMass)) ;  // Decay length for kaon is 371 cm.
-	  kaonFake[j] = fFake[1][j] /( doNotDecayFactor) ;
-	} else { // PION
-	  pionFake[j] = fFake[0][j] ;	
-	}
-	partFake[0][j] = pionFake[j];
-	partFake[1][j] = kaonFake[j];
-      }      
-    }
-    
-  } else { 
-    for ( Int_t j = 0 ; j < 20 ; j++ ) { 
-      particleFake[j] = fFake[2][j];
-      // NOTE: Decay factor (see kaon) should be included to be realiable
-    }
-  }
-
-  for ( Int_t j = 0 ; j < 20 ; j++ ) { 
-    pionFake[j]     *= 100;
-    kaonFake[j]     *= 100;
-    particleFake[j] *= 100;
-  }
- 
-  TGraph * graph =  0;
-  if (particle==0) {
-    graph = new TGraph ( 20, fTransMomenta, particleFake ) ; // choosen mass
-    graph->SetLineWidth(1);
-  }  else if (particle==1) {
-    graph = new TGraph ( 20, fTransMomenta, pionFake ) ;
-    graph->SetLineWidth(1);
-  }  else if (particle ==2) {
-    graph = new TGraph ( 20, fTransMomenta, kaonFake ) ;
-    graph->SetLineWidth(1);
-  } 
-  
-  graph->GetXaxis()->SetTitle("Transverse Momentum (GeV/c)") ;
-  graph->GetXaxis()->CenterTitle();
-  graph->GetXaxis()->SetNoExponent(1) ;
-  graph->GetXaxis()->SetMoreLogLabels(1) ;
-  graph->GetYaxis()->SetTitle("Fake (%)") ;
-  graph->GetYaxis()->CenterTitle();
-	  
-  graph->SetMinimum(0.01) ; 
-  graph->SetMaximum(100)  ; 
-
-  graph->SetLineColor(color);
-  graph->SetMarkerColor(color);
-  graph->SetLineWidth(linewidth);
-
-  return graph;
-}
-
-
-TGraph* KMCDetector::GetGraphImpactParam(Int_t mode, Int_t axis, Int_t color, Int_t linewidth) {
-  //
-  // returns the Impact Parameter d0 (convolution of pointing resolution and vtx resolution)
-  // mode 0: impact parameter (convolution of pointing and vertex resolution)
-  // mode 1: pointing resolution
-  // mode 2: vtx resolution 
-  
-  
-  TGraph *graph = new TGraph();
-
-  //  TFormula vtxResRPhi("vtxRes","50-2*x"); // 50 microns at pt=0, 15 microns at pt =20 ?
-  TFormula vtxResRPhi("vtxRes","35/(x+1)+10"); // 
-  TFormula vtxResZ("vtxResZ","600/(x+6)+10"); // 
-    
-  TGraph *trackRes = GetGraphPointingResolution(axis,1);
-  Double_t *pt = trackRes->GetX();
-  Double_t *trRes = trackRes->GetY();
-  for (Int_t ip =0; ip<trackRes->GetN(); ip++) {
-    Double_t vtxRes = 0;
-    if (axis==0) 
-      vtxRes = vtxResRPhi.Eval(pt[ip]);
-    else 
-      vtxRes = vtxResZ.Eval(pt[ip]);
-    
-    if (mode==0)
-      graph->SetPoint(ip,pt[ip],TMath::Sqrt(vtxRes*vtxRes+trRes[ip]*trRes[ip]));
-    else if (mode ==1)
-      graph->SetPoint(ip,pt[ip],trRes[ip]);
-    else
-      graph->SetPoint(ip,pt[ip],vtxRes);
-  }
-  
-  graph->SetTitle("d_{0} r#phi resolution .vs. Pt" ) ;
-  graph->GetYaxis()->SetTitle("d_{0} r#phi resolution (#mum)") ;
-  
-  graph->SetMinimum(1) ;
-  graph->SetMaximum(300.1) ;
-  graph->GetXaxis()->SetTitle("Transverse Momentum (GeV/c)") ;
-  graph->GetXaxis()->CenterTitle();
-  graph->GetXaxis()->SetNoExponent(1) ;
-  graph->GetXaxis()->SetMoreLogLabels(1) ;
-  graph->GetYaxis()->CenterTitle();
-  
-  graph->SetLineColor(color);
-  graph->SetMarkerColor(color);
-  graph->SetLineWidth(linewidth);
-
-  return graph;
-
-}
-
-TGraph* KMCDetector::GetGraph(Int_t number, Int_t color, Int_t linewidth) {
-  // 
-  // returns graph according to the number
-  //
-  switch(number) {
-  case 1:
-    return GetGraphPointingResolution(0,color, linewidth); // dr
-  case 2:
-    return GetGraphPointingResolution(1,color, linewidth); // dz
-  case 3:
-    return GetGraphPointingResolutionTeleEqu(0,color, linewidth); // dr - tele
-  case 4:
-    return GetGraphPointingResolutionTeleEqu(1,color, linewidth); // dz - tele
-  case 5:
-    return GetGraphMomentumResolution(color, linewidth); // pt resolution
-  case 10:
-    return GetGraphRecoEfficiency(0, color, linewidth);  // tracked particle
-  case 11:
-    return GetGraphRecoEfficiency(1, color, linewidth);  // eff. pion
-  case 12:
-    return GetGraphRecoEfficiency(2, color, linewidth);  // eff. kaon
-  case 13: 
-    return GetGraphRecoEfficiency(3, color, linewidth);  // eff. D0
-  case 15:
-    return GetGraphRecoFakes(0, color, linewidth);  // Fake tracked particle
-  case 16:
-    return GetGraphRecoFakes(1, color, linewidth);  // Fake pion
-  case 17:
-    return GetGraphRecoFakes(2, color, linewidth);  // Fake kaon
-  default:
-    printf(" Error: chosen graph number not valid\n");
-  }
-  return 0;
-
-}
-
-void KMCDetector::MakeAliceAllNew(Bool_t flagTPC,Bool_t flagMon, int setVer) {
-  
-  // All New configuration with X0 = 0.3 and resolution = 4 microns
-  
-  AddLayer((char*)"bpipe_its",2.0,0.0022, 0.092); // beam pipe, 0.5 mm Be
-  AddLayer((char*)"vertex_its",     0,     0); // dummy vertex for matrix calculation
-  if (fgVtxConstraint[0]>0 && fgVtxConstraint[1]>0) {
-    printf("vertex will work as constraint: %.4f %.4f\n",fgVtxConstraint[0],fgVtxConstraint[1]);
-    SetResolution((char*)"vertex_its",fgVtxConstraint[0],fgVtxConstraint[1]);
-  }
-  //
-  // new ideal Pixel properties?
-  Double_t x0     = 0.0050;
-  Double_t resRPhi = 0.0006;
-  Double_t resZ   = 0.0006;
-  Double_t xrho = 0.0116;  // assume 0.5mm of silicon for eloss
-  //
-  if (flagMon) {
-    x0 *= 3./5.;
-    xrho *=3./5.;
-    resRPhi = 0.0004;
-    resZ   = 0.0004;
-  }
-
-  double sclD = 1;
-  double sclZ = 1;
-
-  // default all new  
-  if (setVer<=0) {
-    AddLayer((char*)"its1",  2.2 ,  x0, xrho, resRPhi, resZ); 
-    AddLayer((char*)"its2",  3.8 ,  x0, xrho, resRPhi, resZ); 
-    AddLayer((char*)"its3",  6.8 ,  x0, xrho, resRPhi, resZ); 
-    AddLayer((char*)"its4", 12.4 ,  x0, xrho, resRPhi, resZ); 
-    AddLayer((char*)"its5", 23.5 ,  x0, xrho, resRPhi, resZ); 
-    AddLayer((char*)"its6", 39.6 ,  x0, xrho, resRPhi, resZ); 
-    AddLayer((char*)"its7", 43.0 ,  x0, xrho, resRPhi, resZ); 
-  }
-  else if (setVer==1) {
-    AddLayer((char*)"its1",  2.2 ,  x0, xrho, resRPhi, resZ); 
-    AddLayer((char*)"its2",  2.8 ,  x0, xrho, resRPhi, resZ); 
-    AddLayer((char*)"its3",  3.6 ,  x0, xrho, resRPhi, resZ); 
-    AddLayer((char*)"its4", 20.0 ,  x0, xrho, resRPhi*sclD, resZ*sclZ); 
-    AddLayer((char*)"its5", 22.0 ,  x0, xrho, resRPhi*sclD, resZ*sclZ); 
-    AddLayer((char*)"its6", 43.0 ,  x0, xrho, resRPhi*sclD, resZ*sclZ); 
-    AddLayer((char*)"its7", 43.6 ,  x0, xrho, resRPhi*sclD, resZ*sclZ); 
-    //
-    /*
-    UInt_t patt[] = {
-      KMCTrackSummary::Bits(1,1,1),
-      KMCTrackSummary::Bits(0,0,0,1,1),
-      KMCTrackSummary::Bits(0,0,0,0,0,1,1)
-    };
-    RequirePattern( patt, sizeof(patt)/sizeof(UInt_t));
-    */
-  }
-  else if (setVer==2) {
-    AddLayer((char*)"its1",  2.2 ,  x0, xrho, resRPhi, resZ); 
-    AddLayer((char*)"its1a", 2.8 ,  x0, xrho, resRPhi, resZ); 
-    AddLayer((char*)"its2",  3.6 ,  x0, xrho, resRPhi, resZ); 
-    AddLayer((char*)"its2a", 4.2 ,  x0, xrho, resRPhi, resZ); 
-    AddLayer((char*)"its3", 20.0 ,  x0, xrho, resRPhi*sclD, resZ*sclZ); 
-    AddLayer((char*)"its4", 22.0 ,  x0, xrho, resRPhi*sclD, resZ*sclZ); 
-    AddLayer((char*)"its5", 33.0 ,  x0, xrho, resRPhi*sclD, resZ*sclZ); 
-    AddLayer((char*)"its6", 43.0 ,  x0, xrho, resRPhi*sclD, resZ*sclZ); 
-    AddLayer((char*)"its7", 43.6 ,  x0, xrho, resRPhi*sclD, resZ*sclZ); 
-    //
-    /*
-    UInt_t patt[] = {
-      KMCTrackSummary::Bits(1,1,1,1),
-      KMCTrackSummary::Bits(0,0,0,0,1,1),
-      KMCTrackSummary::Bits(0,0,0,0,0,0,1,1,1)
-    };
-    RequirePattern( patt, sizeof(patt)/sizeof(UInt_t));
-    */
-  }
-   /*
-  // last 2 layers strips
-  double resRPStr=0.0020, resZStr = 0.0830;
-  AddLayer((char*)"its1",  2.2 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its2",  3.8 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its3",  6.8 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its4", 12.4 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its5", 23.5 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its6", 39.6 ,  x0, xrho, resRPStr, resZStr); 
-  AddLayer((char*)"its7", 43.0 ,  x0, xrho, resRPStr, resZStr); 
-   */
-  //*/
-  /*
-  // resolution scaled with R as res(2.2) * R/2.2
-  AddLayer((char*)"its1",  2.2 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its2",  3.8 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its3",  6.8 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its4", 12.4 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its5", 23.5 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its6", 39.6 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its7", 43.0 ,  x0, xrho, resRPhi, resZ); 
-  KMCLayer* lr0 = 0;
-  for (int i=0;i<GetNActiveITSLayers();i++) {
-    KMCLayer *lr = GetActiveLayer(i);
-    if (lr->IsVertex()) continue;
-    if (lr0==0) {
-      lr0=lr; 
-      //  continue;
-    }
-    double scl = 5*lr->GetRadius()/lr0->GetRadius();
-    SetResolution((char*)lr->GetName(), resRPhi*scl, resZ*scl*4);
-  }
-  */
-  /*
-  // 1st 2 layers double
-  AddLayer((char*)"its1",  2.2 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its1a",  2.8 ,  x0, xrho, resRPhi, resZ); 
-
-  AddLayer((char*)"its2",  3.8 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its2a",  4.2 ,  x0, xrho, resRPhi, resZ); 
-
-  AddLayer((char*)"its3a",  6.4 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its3",  6.8 ,  x0, xrho, resRPhi, resZ); 
-
-  AddLayer((char*)"its4", 12.4 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its5", 23.5 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its6", 39.6 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its7", 43.0 ,  x0, xrho, resRPhi, resZ); 
-  */
-  /*
-  // last 4 layers doubled
-  AddLayer((char*)"its1",  2.2 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its2",  3.8 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its3",  6.8 ,  x0, xrho, resRPhi, resZ); 
-
-  AddLayer((char*)"its4", 12.4 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its4a", 12.8 ,  x0, xrho, resRPhi, resZ); 
-
-  AddLayer((char*)"its5", 23.5 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its5a", 23.9 ,  x0, xrho, resRPhi, resZ); 
-
-  AddLayer((char*)"its6", 39.6 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its6a", 40.0 ,  x0, xrho, resRPhi, resZ); 
-
-  AddLayer((char*)"its7", 43.0 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its7a", 43.4 ,  x0, xrho, resRPhi, resZ); 
-  */
-
-  /* //last 3 lr together 
-  AddLayer((char*)"its1",  2.2 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its2",  3.8 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its3",  6.8 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its4", 12.4 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its5", 42.2 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its6", 42.6 ,  x0, xrho, resRPhi, resZ); 
-  AddLayer((char*)"its7", 43.0 ,  x0, xrho, resRPhi, resZ); 
-  */
-  if (flagTPC) {
-    AddTPC(0.1,0.1);                        // TPC
-  }
-  PrintLayout();
-}
-
-void KMCDetector::MakeAliceCurrent(Bool_t flagTPC, Int_t AlignResiduals) {
-
-  // Numbers taken from 
-  // 2010 JINST 5 P03003 - Alignment of the ALICE Inner Tracking System with cosmic-ray tracks
-  // number for misalingment: private communication with Andrea Dainese
-
-  //  1.48e-01, 2.48e-01,2.57e-01, 1.34e-01, 3.34e-01,3.50e-01, 2.22e-01, 2.38e-01,2.25e-01};
-
-  AddLayer((char*)"vertex_its",     0,     0); // dummy vertex for matrix calculation
-  if (fgVtxConstraint[0]>0 && fgVtxConstraint[1]>0) {
-    printf("vertex will work as constraint: %.4f %.4f",fgVtxConstraint[0],fgVtxConstraint[1]);
-    SetResolution((char*)"vertex_its",fgVtxConstraint[0],fgVtxConstraint[1]);
-  }
-  //
-  AddLayer((char*)"bpipe_its",2.94,0.0022, 1.48e-01); // beam pipe
-  AddLayer((char*)"tshld1_its",11.5,0.0065, 1.34e-01); // Thermal shield  // 1.3% /2
-  AddLayer((char*)"tshld2_its",31.0,0.0108, 2.22e-01); // Thermal shield  // 1.3% /2
-  //
-  if (flagTPC) {
-    AddTPC(0.1,0.1);                        // TPC
-  }
-  // Adding the ITS - current configuration
-  
-  if (AlignResiduals==0) {
-    AddLayer((char*)"spd1_its", 3.9, 0.0114, 2.48e-01, 0.0012, 0.0130);
-    AddLayer((char*)"spd2_its", 7.6, 0.0114, 2.57e-01, 0.0012, 0.0130);
-    AddLayer((char*)"sdd1_its",15.0, 0.0113, 3.34e-01, 0.0035, 0.0025);
-    AddLayer((char*)"sdd2_its",23.9, 0.0126, 3.50e-01, 0.0035, 0.0025);
-    AddLayer((char*)"ssd1_its",38.0, 0.0083, 2.38e-01, 0.0020, 0.0830);
-    AddLayer((char*)"ssd2_its",43.0, 0.0086, 2.25e-01, 0.0020, 0.0830);
-    /*
-    UInt_t patt[] = {
-      KMCTrackSummary::Bits(1,1),
-      KMCTrackSummary::Bits(0,0,1,1),
-      KMCTrackSummary::Bits(0,0,0,0,1,1)
-    };
-    RequirePattern( patt, sizeof(patt)/sizeof(UInt_t));
-    */
-  } else if (AlignResiduals==1) {
-
-    // tracking errors ...
-    // (Additional systematic errors due to misalignments) ... 
-    // itsRecoParam->SetClusterMisalErrorYBOn(0.0010,0.0030,0.0500,0.0500,0.0020,0.0020);  // [cm]
-    // itsRecoParam->SetClusterMisalErrorZBOn(0.0050,0.0050,0.0050,0.0050,0.1000,0.1000);
-
-    AddLayer((char*)"spd1_its", 3.9, 0.0114, 2.48e-01, TMath::Sqrt(0.0012*0.0012+0.0010*0.0010), 
-	     TMath::Sqrt(0.0130*0.0130+0.0050*0.0050));
-    AddLayer((char*)"spd2_its", 7.6, 0.0114, 2.57e-01, TMath::Sqrt(0.0012*0.0012+0.0030*0.0030),
-	     TMath::Sqrt(0.0130*0.0130+0.0050*0.0050));
-    AddLayer((char*)"sdd1_its",15.0, 0.0113, 3.34e-01, TMath::Sqrt(0.0035*0.0035+0.0100*0.0100),
-	     TMath::Sqrt(0.0025*0.0025+0.0050*0.0050));
-    AddLayer((char*)"sdd2_its",23.9, 0.0126, 3.50e-01, TMath::Sqrt(0.0035*0.0035+0.0100*0.0100),
-	     TMath::Sqrt(0.0025*0.0025+0.0050*0.0050));
-    AddLayer((char*)"ssd1_its",38.0, 0.0083, 2.38e-01, TMath::Sqrt(0.0020*0.0020+0.0020*0.0020), 
-	     TMath::Sqrt(0.0830*0.0830+0.1000*0.1000));
-    AddLayer((char*)"ssd2_its",43.0, 0.0086, 2.25e-01, TMath::Sqrt(0.0020*0.0020+0.0020*0.0020),
-	     TMath::Sqrt(0.0830*0.0830+0.1000*0.1000));   
-    
-  } else if (AlignResiduals==2) {
-
-    
-    // tracking errors ... PLUS ... module misalignment
-    
-    // itsRecoParam->SetClusterMisalErrorYBOn(0.0010,0.0030,0.0500,0.0500,0.0020,0.0020);  // [cm]
-    // itsRecoParam->SetClusterMisalErrorZBOn(0.0050,0.0050,0.0050,0.0050,0.1000,0.1000);
-    
-    //  the ITS modules are misalignment with small gaussian smearings with
-    //  sigmarphi ~ 8, 10, 10 micron in SPD, SDD, SSD
-    
-    AddLayer((char*)"spd1_its", 3.9, 0.0114, 2.48e-01, TMath::Sqrt(0.0012*0.0012+0.0010*0.0010+0.0008*0.0008), 
-	     TMath::Sqrt(0.0130*0.0130+0.0050*0.0050));
-    AddLayer((char*)"spd2_ots", 7.6, 0.0114, 2.57e-01, TMath::Sqrt(0.0012*0.0012+0.0030*0.0030+0.0008*0.0008),
-	     TMath::Sqrt(0.0130*0.0130+0.0050*0.0050));
-    AddLayer((char*)"sdd1_ots",15.0, 0.0113, 3.34e-01, TMath::Sqrt(0.0035*0.0035+0.0500*0.0500+0.0010*0.0010),
-	     TMath::Sqrt(0.0025*0.0025+0.0050*0.0050));
-    AddLayer((char*)"sdd2_its",23.9, 0.0126, 3.50e-01, TMath::Sqrt(0.0035*0.0035+0.0500*0.0500+0.0010*0.0010),
-	     TMath::Sqrt(0.0025*0.0025+0.0050*0.0050));
-    AddLayer((char*)"ssd1_its",38.0, 0.0083, 2.38e-01, TMath::Sqrt(0.0020*0.0020+0.0020*0.0020+0.0010*0.0010), 
-	     TMath::Sqrt(0.0830*0.0830+0.1000*0.1000));
-    AddLayer((char*)"ssd2_its",43.0, 0.0086, 2.25e-01, TMath::Sqrt(0.0020*0.0020+0.0020*0.0020+0.0010*0.0010),
-	     TMath::Sqrt(0.0830*0.0830+0.1000*0.1000)); 
-
-  } else {
-      
-      //  the ITS modules are misalignment with small gaussian smearings with
-      //  sigmarphi ~ 8, 10, 10 micron in SPD, SDD, SSD
-      //  unknown in Z ????
-
-    AddLayer((char*)"spd1_its", 3.9, 0.0114, 2.48e-01, TMath::Sqrt(0.0012*0.0012+0.0008*0.0008), 
-	     TMath::Sqrt(0.0130*0.0130+0.000*0.000));
-    AddLayer((char*)"spd2_its", 7.6, 0.0114, 2.57e-01, TMath::Sqrt(0.0012*0.0012+0.0008*0.0008),
-	     TMath::Sqrt(0.0130*0.0130+0.000*0.000));
-    AddLayer((char*)"sdd1_its",15.0, 0.0113, 3.34e-01, TMath::Sqrt(0.0035*0.0035+0.0010*0.0010),
-	     TMath::Sqrt(0.0025*0.0025+0.000*0.000));
-    AddLayer((char*)"sdd2_its",23.9, 0.0126, 3.50e-01, TMath::Sqrt(0.0035*0.0035+0.0010*0.0010),
-	     TMath::Sqrt(0.0025*0.0025+0.000*0.000));
-    AddLayer((char*)"ssd1_its",38.0, 0.0083, 2.38e-01, TMath::Sqrt(0.0020*0.0020+0.0010*0.0010), 
-	     TMath::Sqrt(0.0830*0.0830+0.000*0.000));
-    AddLayer((char*)"ssd2_its",43.0, 0.0086, 2.25e-01, TMath::Sqrt(0.0020*0.0020+0.0010*0.0010),
-	     TMath::Sqrt(0.0830*0.0830+0.000*0.000));       
-  }
-  
-}
-
-
-void KMCDetector::MakeStandardPlots(Bool_t add, Int_t color, Int_t linewidth,Bool_t onlyPionEff) {
-  //
-  // Produces the standard performace plots
-  //
- 
-  if (!add) {
-
-    TCanvas *c1 = new TCanvas("c1","c1");//,100,100,500,500);  
-    c1->Divide(2,2);
-    
-    c1->cd(1);  gPad->SetGridx();   gPad->SetGridy(); 
-    gPad->SetLogx(); 
-    TGraph *eff = GetGraphRecoEfficiency(1,color,linewidth);
-    eff->SetTitle("Efficiencies");
-    eff->Draw("AL");
-    if (!onlyPionEff) {
-      GetGraphRecoEfficiency(2,color,linewidth)->Draw("L");
-      GetGraphRecoEfficiency(3,color,linewidth)->Draw("L");
-    }
-    c1->cd(2); gPad->SetGridx();   gPad->SetGridy(); 
-    gPad->SetLogy();  gPad->SetLogx(); 
-    GetGraphMomentumResolution(color,linewidth)->Draw("AL");
-    
-    c1->cd(3); gPad->SetGridx();   gPad->SetGridy(); 
-    gPad->SetLogx(); 
-    GetGraphPointingResolution(0,color,linewidth)->Draw("AL");
-    
-    c1->cd(4); gPad->SetGridx();   gPad->SetGridy(); 
-    gPad->SetLogx(); 
-    GetGraphPointingResolution(1,color,linewidth)->Draw("AL");
-
-  } else {
-
-    TVirtualPad *c1 = gPad->GetMother();
-
-    c1->cd(1);
-    GetGraphRecoEfficiency(1,color,linewidth)->Draw("L");
-    if (!onlyPionEff) {
-      GetGraphRecoEfficiency(2,color,linewidth)->Draw("L");
-      GetGraphRecoEfficiency(3,color,linewidth)->Draw("L");
-    }
-    c1->cd(2); GetGraphMomentumResolution(color,linewidth)->Draw("L");
-    
-    c1->cd(3); GetGraphPointingResolution(0,color,linewidth)->Draw("L");
-    
-    c1->cd(4); GetGraphPointingResolution(1,color,linewidth)->Draw("L");
-    
-  }
-
 }
 
 void KMCDetector::ApplyMS(KMCProbe* trc, double x2X0) const
@@ -1891,6 +694,58 @@ void KMCDetector::ApplyMS(KMCProbe* trc, double x2X0) const
   memcpy(cov,covCorr,15*sizeof(double));
   //
 }
+
+
+
+///LAST
+
+/*
+KMCProbe* KMCDetector::PrepareKalmanTrack(double pt, double lambda, double mass, int charge, double phi, double x,double y, double z)
+{
+  // Prepare trackable Kalman track at the farthest position
+  //
+  // Set track parameters
+  // Assume track started at (0,0,0) and shoots out on the X axis, and B field is on the Z axis
+  fProbe.Reset();
+  fProbe.SetMass(mass);
+  KMCProbe* probe = new KMCProbe(fProbe);
+  double *trPars = (double*)probe->GetParameter();
+  double *trCov  = (double*)probe->GetCovariance();
+  double xyz[3] = {x,y,z};
+  probe->Global2LocalPosition(xyz,phi);
+  probe->Set(xyz[0],phi,trPars,trCov);
+  trPars[KMCProbe::kY] = xyz[1];
+  trPars[KMCProbe::kZ] = xyz[2];
+  trPars[KMCProbe::kSnp] = 0;                       //            track along X axis at the vertex
+  trPars[KMCProbe::kTgl] = TMath::Tan(lambda);                // dip
+  trPars[KMCProbe::kPtI] = charge/pt;               //            q/pt      
+  //
+  // put tiny errors to propagate to the outer-most radius
+  trCov[KMCProbe::kY2] = trCov[KMCProbe::kZ2] = trCov[KMCProbe::kSnp2] = trCov[KMCProbe::kTgl2] = trCov[KMCProbe::kPtI2] = 1e-20;
+  fProbe = *probe;  // store original track
+  //
+  // propagate to last layer layer reachable with max snp
+  fFirstActiveLayerTracked = -1;
+  fLastActiveLayerTracked = 0;
+  Bool_t res = TransportKalmanTrackWithMS(&probe);
+  double r = TMath::Sqrt(x*x+y*y);
+  for (Int_t j=0; j<=fLastActiveLayer; j++) {
+    KMCLayer* lr = GetLayer(j);
+    lr->Reset();
+    //
+    if (lr->GetRadius()>r) continue;
+    if (!PropagateToLayer(probe,lr,1)) break;
+    if (!probe->CorrectForMeanMaterial(lr, kFALSE)) break;
+    //
+    lr->fClCorr.Set(probe->GetY(),probe->GetZ(), probe->GetX(), probe->GetAlpha());
+    if (!lr->IsDead()) fLastActiveLayerTracked = j;
+  }
+  probe->ResetCovMat();// reset cov.matrix
+
+  //
+  return probe;
+}
+
 
 //________________________________________________________________________________
 int KMCDetector::TransportKalmanTrackWithMS(KMCProbe *probTr)
@@ -1999,18 +854,6 @@ Bool_t KMCDetector::SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, D
   sw.Stop();
   printf("Total time: "); sw.Print();
   return kTRUE;
-}
-
-//________________________________________________________________________________
-Int_t KMCDetector::GetLayerID(int actID) const
-{
-  // find physical layer id from active id
-  if (actID<0 || actID>fNActiveLayers) return -1;
-  int start = actID<fNActiveITSLayers ? fLastActiveITSLayer : fLastActiveLayer;
-  for (int i=start+1;i--;) {
-    if (GetLayer(i)->GetActiveID()==actID) return i;   
-  }
-  return -1;
 }
 
 //________________________________________________________________________________
@@ -2236,12 +1079,6 @@ Bool_t KMCDetector::SolveSingleTrackViaKalmanMC(int offset)
     //    pars[1] += gRandom->Gaus(0,TMath::Sqrt(currTr->GetSigmaZ2()));
     //
     currTr->ResetCovMat();
-    /*
-    double *trCov  = (double*)currTr->GetCovariance();
-    double *trPars = (double*)currTr->GetParameter();
-    const double kLargeErr2PtI = 0.3*0.3;
-    trCov[14] = TMath::Max(trCov[14],kLargeErr2PtI*trPars[4]*trPars[4]);
-    */
   }
   //
   for (Int_t j=maxLr; j--; ) {  // Layer loop
@@ -2433,19 +1270,6 @@ void KMCDetector::UpdateSearchLimits(KMCProbe* probe, KMCLayer* lr)
   static double *currZMax = fBgZMaxTr.GetArray();
   //
   double sizeY = probe->GetSigmaY2(), sizeZ = probe->GetSigmaZ2();
-  //  /*
-  if (probe->GetNITSHits()<3) sizeY = 10*lr->fSig2EstD;
-  if (probe->GetNITSHits()<2) sizeZ = 10*lr->fSig2EstZ;
-  sizeY = fMaxChi2ClSQ*TMath::Sqrt(sizeY+lr->fPhiRes*lr->fPhiRes); // max deviation in rphi to accept
-  sizeZ = fMaxChi2ClSQ*TMath::Sqrt(sizeZ+lr->fZRes*lr->fZRes); // max deviation in dz to accept
-  //  */
-  //
-  /*
-  if (probe->GetNITSHits()<3) sizeY = 1./(1./lr->fSig2EstD + 1./sizeY);
-  if (probe->GetNITSHits()<2) sizeZ = 1./(1./lr->fSig2EstZ + 1./sizeZ);
-  sizeY = fMaxChi2ClSQ*TMath::Sqrt(sizeY); // max deviation in rphi to accept
-  sizeZ = fMaxChi2ClSQ*TMath::Sqrt(sizeZ); // max deviation in dz to accept
-  */
   //
   //  if (sizeY>2) sizeY=2;
   //  if (sizeZ>2) sizeZ=2;
@@ -2541,14 +1365,6 @@ void KMCDetector::CheckTrackProlongations(KMCProbe *probe, KMCLayer* lr, KMCLaye
     if (NeedToKill(newTr)) newTr->Kill();
   }
   //
-}
-
-//____________________________________________________________________________
-void KMCDetector::ResetMCTracks(Int_t maxLr)
-{
-  int nl = GetNLayers();
-  if (maxLr<0 || maxLr>=nl) maxLr = nl-1;
-  for (int i=maxLr+1;i--;) GetLayer(i)->ResetMCTracks();
 }
 
 //____________________________________________________________________________
@@ -2704,249 +1520,4 @@ double KMCDetector::PropagateBack(KMCProbe* trc)
   }
   return chi2Tot;
 }
-
-
-//////////////////////////////////////////////////////////////////////////////////////////////
-//--------------------------------------------------------------------------------------------
-ClassImp(KMCTrackSummary)
-
-Int_t KMCTrackSummary::fgSumCounter = 0;
-
-//____________________________________________________________________________
-KMCTrackSummary::KMCTrackSummary(const char* name,const char* title, int nlr) :
-  TNamed(name,name), fNITSLayers(nlr),
-  fPattITS(0),fPattITSFakeExcl(0),fPattITSCorr(0),
-  fHMCChi2(0),fHMCSigDCARPhi(0),fHMCSigDCAZ(0),fHMCSigPt(0),fHMCNCl(0),fHMCFakePatt(0),
-  fCountAcc(0),fCountTot(0),fUpdCalls(0),
-  fRefProbe(),fAnProbe()
-{
-  // create summary structure for specific track conditions
-  //
-  SetMinMaxClITS();
-  SetMinMaxClITSFake();
-  SetMinMaxClITSCorr();
-  //
-  if (name==0 && title==0 && nlr==0) return;  // default dummy contructor
-  //
-  enum {kNBinRes=1000};
-  const double kMaxChi2(10),kMaxResRPhi=0.1, kMaxResZ=0.1,kMaxResPt=0.3;
-  //
-  TString strN = name, strT = title;
-  if (strN.IsNull()) strN = Form("TrSum%d",fgSumCounter);
-  if (strT.IsNull()) strT = strN;
-  fgSumCounter++;
-  //
-  if (fNITSLayers<1) {
-    fNITSLayers=KMCProbe::GetNITSLayers(); 
-    if (fNITSLayers<1) {AliError("N ITS layer is not provided and not available from KMCProbe::GetNITSLayers()"); exit(1);}
-    AliInfo(Form("%s No N Layers provided, set %d",strN.Data(),fNITSLayers));
-  }
-  nlr = fNITSLayers;
-  //
-  TString nam,tit;
-  //
-  nam = Form("%s_mc_chi2",strN.Data());
-  tit = Form("%s MC #chi^{2}",strT.Data());
-  fHMCChi2 = new TH1F(nam.Data(),tit.Data(),kNBinRes,0,kMaxChi2);
-  fHMCChi2->GetXaxis()->SetTitle("#chi^{2}");
-  fHMCChi2->Sumw2();
-  //
-  nam = Form("%s_mc_DCArphi",strN.Data());
-  tit = Form("%s MC #DeltaDCA r#phi",strT.Data());
-  fHMCSigDCARPhi = new TH1F(nam.Data(),tit.Data(),kNBinRes,-kMaxResRPhi,kMaxResRPhi);
-  fHMCSigDCARPhi->GetXaxis()->SetTitle("#Delta r#phi");
-  fHMCSigDCARPhi->Sumw2();
-  //
-  nam = Form("%s_mc_DCAz",strN.Data());
-  tit = Form("%s MC #DeltaDCA Z",strT.Data());
-  fHMCSigDCAZ = new TH1F(nam.Data(),tit.Data(),kNBinRes,-kMaxResZ,kMaxResZ);
-  fHMCSigDCAZ->GetXaxis()->SetTitle("#Delta Z");
-  fHMCSigDCAZ->Sumw2();
-  //
-  nam = Form("%s_mc_pt",strN.Data());
-  tit = Form("%s MC $Deltap_{T}/p_{T}",strT.Data());
-  fHMCSigPt = new TH1F(nam.Data(),tit.Data(),2*kNBinRes,-kMaxResPt,kMaxResPt);
-  fHMCSigPt->GetXaxis()->SetTitle("#Deltap_{T}/p_{T}");
-  fHMCSigPt->Sumw2();
-  //
-  nam = Form("%s_n_cl",strN.Data());
-  tit = Form("%s N Clusters",strT.Data());
-  fHMCNCl = new TH2F(nam.Data(),tit.Data(),nlr,1,nlr+1,nlr,1,nlr+1);
-  fHMCNCl->GetXaxis()->SetTitle("N Clusters Tot");
-  fHMCNCl->GetYaxis()->SetTitle("N Clusters Fake");
-  fHMCNCl->Sumw2();
-  //
-  nam = Form("%s_fake_cl",strN.Data());
-  tit = Form("%s Fake Clusters",strT.Data());
-  fHMCFakePatt = new TH1F(nam.Data(),tit.Data(),nlr,-0.5,nlr-0.5);
-  fHMCFakePatt->GetXaxis()->SetTitle("Fake clusters pattern");
-  fHMCFakePatt->Sumw2();
-  //
-}
-
-//____________________________________________________________________________
-KMCTrackSummary::~KMCTrackSummary()
-{
-  if (fHMCChi2)         delete fHMCChi2;
-  if (fHMCSigDCARPhi)   delete fHMCSigDCARPhi;
-  if (fHMCSigDCAZ)      delete fHMCSigDCAZ;
-  if (fHMCSigPt)        delete fHMCSigPt;
-  if (fHMCNCl)          delete fHMCNCl;
-  if (fHMCFakePatt)     delete fHMCFakePatt;
-}
-
-
-//____________________________________________________________________________
-void KMCTrackSummary::Add(const KMCTrackSummary* src, double scl)
-{
-  if (fHMCChi2)         fHMCChi2->Add(src->fHMCChi2,scl);
-  if (fHMCSigDCARPhi)   fHMCSigDCARPhi->Add(src->fHMCSigDCARPhi,scl);
-  if (fHMCSigDCAZ)      fHMCSigDCAZ->Add(src->fHMCSigDCAZ,scl);
-  if (fHMCSigPt)        fHMCSigPt->Add(src->fHMCSigPt,scl);
-  if (fHMCNCl)          fHMCNCl->Add(src->fHMCNCl,scl);
-  if (fHMCFakePatt)     fHMCFakePatt->Add(src->fHMCFakePatt,scl);
-  fCountAcc += src->fCountAcc;
-  fUpdCalls += src->fUpdCalls;
-}
-
-//____________________________________________________________________________
-void KMCTrackSummary::PrependTNamed(TNamed* obj, const char* nm, const char* tit)
-{
-  // prepend  name, title by this prefix
-  TString name = obj->GetName(),title = obj->GetTitle();
-  name.Prepend(nm); title.Prepend(tit);
-  obj->SetNameTitle(name.Data(),title.Data());
-  //
-}
-  
-//____________________________________________________________________________
-void KMCTrackSummary::SetNamePrefix(const char* pref)
-{
-  // prepend all names by this prefix
-  TString nmT,nmP = pref;
-  if (nmP.IsNull()) return;
-  nmP = Form("%s_",pref);
-  nmT = Form("%s ",pref);
-  PrependTNamed(this, nmP.Data(), nmT.Data());
-  PrependTNamed(fHMCChi2,       nmP.Data(), nmT.Data());
-  PrependTNamed(fHMCSigDCARPhi, nmP.Data(), nmT.Data());
-  PrependTNamed(fHMCSigDCAZ,    nmP.Data(), nmT.Data());
-  PrependTNamed(fHMCSigPt,      nmP.Data(), nmT.Data());
-  PrependTNamed(fHMCNCl,        nmP.Data(), nmT.Data());
-  PrependTNamed(fHMCFakePatt,   nmP.Data(), nmT.Data());
-  //  
-}
-
-//____________________________________________________________________________
-Bool_t KMCTrackSummary::CheckTrack(KMCProbe* trc)
-{
-  // check if the track satisfies to selection conditions
-  fCountTot++;
-  if (!trc) return kFALSE;
-  if (OutOfRange(trc->GetNITSHits(), fMinMaxClITS)) return kFALSE;
-  if (OutOfRange(trc->GetNFakeITSHits(), fMinMaxClITSFake)) return kFALSE;
-  if (OutOfRange(trc->GetNITSHits()-trc->GetNFakeITSHits(), fMinMaxClITSCorr)) return kFALSE;
-  //
-  // check layer patterns if requested
-  UInt_t patt  = trc->GetHitsPatt();
-  UInt_t pattF = trc->GetFakesPatt();
-  UInt_t pattC = patt&(~pattF);    // correct hits
-  // is there at least one hit in each of requested layer groups?
-  for (int ip=fPattITS.GetSize();ip--;)     if (!CheckPattern(patt,fPattITS[ip])) return kFALSE;
-  // is there at least one fake in any of requested layer groups?
-  for (int ip=fPattITSFakeExcl.GetSize();ip--;) if (CheckPattern(pattF,fPattITSFakeExcl[ip])) return kFALSE;
-  // is there at least one correct hit in each of requested layer groups?
-  for (int ip=fPattITSCorr.GetSize();ip--;) if (!CheckPattern(pattC,fPattITSCorr[ip])) return kFALSE;
-  //
-  fCountAcc++;
-  return kTRUE;
-}
-
-//____________________________________________________________________________
-void KMCTrackSummary::AddTrack(KMCProbe* trc)
-{
-  // fill track info
-  if (!CheckTrack(trc)) return;
-  //
-  fHMCChi2->Fill(trc->GetNormChi2(kFALSE));
-  fHMCSigDCARPhi->Fill(trc->GetY());
-  fHMCSigDCAZ->Fill(trc->GetZ());
-  if (fRefProbe.Pt()>0) fHMCSigPt->Fill( trc->Pt()/fRefProbe.Pt()-1.);
-  //  printf("Pts: %.3f %.3f -> %.3f\n",trc->Pt(),fRefProbe.Pt(),trc->Pt()/fRefProbe.Pt()-1.);
-  //  trc->Print("l");
-  //  fRefProbe.Print("l");
-  fHMCNCl->Fill(trc->GetNITSHits(),trc->GetNFakeITSHits());
-  for (int i=trc->GetNITSLayers();i--;) if (trc->IsHitFake(i)) fHMCFakePatt->Fill(i);
-  //
-}
-
-//____________________________________________________________________________
-UInt_t KMCTrackSummary::Bits(Bool_t l0, Bool_t l1, Bool_t l2, Bool_t l3, Bool_t l4, Bool_t l5, Bool_t l6, Bool_t l7,Bool_t  l8, Bool_t l9,
-			  Bool_t l10,Bool_t l11,Bool_t l12,Bool_t l13,Bool_t l14,Bool_t l15,Bool_t l16,Bool_t l17,Bool_t l18,Bool_t l19,
-			  Bool_t l20,Bool_t l21,Bool_t l22,Bool_t l23,Bool_t l24,Bool_t l25,Bool_t l26,Bool_t l27,Bool_t l28,Bool_t l29,
-			  Bool_t l30,Bool_t l31)
-{
-  // create corresponding bit pattern
-  UInt_t patt = 0;
-  if (l0 ) patt |= (0x1<<0);    if (l1 ) patt |= (0x1<<1);   if (l2 ) patt |= (0x1<<2);
-  if (l3 ) patt |= (0x1<<3);    if (l4 ) patt |= (0x1<<4);   if (l5 ) patt |= (0x1<<5);
-  if (l6 ) patt |= (0x1<<6);    if (l7 ) patt |= (0x1<<7);   if (l8 ) patt |= (0x1<<8);
-  if (l9 ) patt |= (0x1<<9);    if (l10) patt |= (0x1<<10);  if (l11) patt |= (0x1<<11);
-  if (l12) patt |= (0x1<<12);   if (l13) patt |= (0x1<<13);  if (l14) patt |= (0x1<<14);
-  if (l15) patt |= (0x1<<15);   if (l16) patt |= (0x1<<16);  if (l17) patt |= (0x1<<17);
-  if (l18) patt |= (0x1<<18);   if (l19) patt |= (0x1<<19);  if (l20) patt |= (0x1<<20);
-  if (l21) patt |= (0x1<<21);   if (l22) patt |= (0x1<<22);  if (l23) patt |= (0x1<<23);
-  if (l24) patt |= (0x1<<24);   if (l25) patt |= (0x1<<25);  if (l26) patt |= (0x1<<26);
-  if (l27) patt |= (0x1<<27);   if (l28) patt |= (0x1<<28);  if (l29) patt |= (0x1<<29);
-  if (l30) patt |= (0x1<<30);   if (l31) patt |= (0x1<<31);   
-  return patt;
-}
-
-//__________________________________________________________________________
-void KMCTrackSummary::Print(Option_t* ) const
-{
-  printf("%s: summary for track M=%5.3f pT: %6.3f eta: %.2f\n", GetName(),
-	 fRefProbe.GetMass(),fRefProbe.Pt(), fRefProbe.Eta());
-  printf("Cuts on NCl ITS: Tot: %2d - %2d Fake: %2d - %2d Corr: %2d - %2d\n",
-	 fMinMaxClITS[0],fMinMaxClITS[1], 
-	 fMinMaxClITSFake[0],fMinMaxClITSFake[1],
-	 fMinMaxClITSCorr[0],fMinMaxClITSCorr[1]);
-  //
-  int nlr = fNITSLayers;
-  if (fPattITS.GetSize()) {
-    printf("Require at least 1 hit in groups: ");
-    printf("Hits obligatory in groups: ");
-    for (int i=fPattITS.GetSize();i--;) {
-      UInt_t pat = (UInt_t)fPattITS[i];
-      printf("[");
-      for (int j=0;j<nlr;j++) if (pat&(0x1<<j)) printf("%d ",j);
-      printf("] ");
-    }
-    printf("\n");
-  }
-  //
-  if (fPattITSFakeExcl.GetSize()) {
-    printf("Fake hit forbidden in groups    : ");
-    for (int i=fPattITSFakeExcl.GetSize();i--;) {
-      UInt_t pat = (UInt_t)fPattITSFakeExcl[i];
-      printf("[");
-      for (int j=0;j<nlr;j++) if (pat&(0x1<<j)) printf("%d ",j);
-      printf("] ");
-    }
-    printf("\n");
-  }
-  //
-  if (fPattITSCorr.GetSize()) {
-    printf("Correct hit obligatory in groups: ");
-    for (int i=fPattITSCorr.GetSize();i--;) {
-      UInt_t pat = (UInt_t)fPattITSCorr[i];
-      printf("[");
-      for (int j=0;j<nlr;j++) if (pat&(0x1<<j)) printf("%d ",j);
-      printf("] ");
-    }
-    printf("\n");
-  }
-  //  
-  printf("Entries: Tot: %.4e Acc: %.4e -> Eff: %.4f+-%.4f %.2e KMC updates\n",fCountTot,fCountAcc,GetEff(),GetEffErr(),GetUpdCalls());
-}
-
+*/
