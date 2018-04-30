@@ -78,10 +78,10 @@ class KMCProbe : public AliExternalTrackParam {
   Float_t fChi2;   // total chi2
   UInt_t  fHits;   // pattern on hits (max 32!)
   UInt_t  fFakes;  // pattern of fakes among hits
-  UShort_t fNHits;    // total hits
-  UShort_t fNHitsFake; // number of fake ITS hits
-  UShort_t fInnerChecked; // innermost layer checked
-  UShort_t fOuterChecked; // innermost layer checked
+  Short_t fNHits;    // total hits
+  Short_t fNHitsFake; // number of fake ITS hits
+  Short_t fInnerChecked; // innermost layer checked
+  Short_t fOuterChecked; // innermost layer checked
   //
   static Int_t    fgNLayers;
   static Double_t fgMissingHitPenalty;
@@ -155,8 +155,9 @@ class KMCCluster : public TObject {
 inline Bool_t KMCProbe::PropagateToCluster(KMCCluster* cl, double b)
 {
   // propagate track to cluster frame
-  if (!Rotate(cl->GetPhi()) || !PropagateTo(cl->GetX(),b)) {
-    AliDebugF(2,"Failed to propager track to cluster at phi=%.3f X=%.3f",cl->GetPhi(),cl->GetX());
+  if ( (TMath::Abs(cl->GetPhi() - GetAlpha())>1e-4 &&  !Rotate(cl->GetPhi())) ||
+       (TMath::Abs(cl->GetX() - GetX())>1e-4 && !PropagateTo(cl->GetX(),b)) ) {
+    AliDebugF(2,"Failed to propagate track to cluster at phi=%.3f X=%.3f",cl->GetPhi(),cl->GetX());
     if (AliLog::GetGlobalDebugLevel()>1) Print();
     return kFALSE;
   }
@@ -262,7 +263,24 @@ class KMCDetector : public TNamed {
   KMCProbe* GetProbeTrack()       const {return (KMCProbe*)&fProbe;}
   void   ClassifyLayers();
   void   Reset() { for (int i=fNLayers;i--;) GetLayer(i)->Reset(); }                  
+  void SetMaxSnp(double v) { fMaxSnp = v; }
+  Double_t GetMaxSnp() const { return fMaxSnp; }
+  void    SetMaxChi2Cl(double cut)  {fMaxChi2Cl = cut>0 ? cut:9;}
+  void    SetMinHits(Int_t n=4)     {fMinHits = n;}
+  void    SetMaxNormChi2NDF(double cut=5.) {fMaxNormChi2NDF = cut>0 ? cut:9;}
 
+  Double_t GetMaxChi2Cl()                   const {return fMaxChi2Cl;}
+  Double_t GetMaxNormChi2NDF()              const {return fMaxNormChi2NDF;}
+  Int_t    GetMinHits()                     const {return fMinHits;}
+
+
+  
+  KMCProbe* PrepareKalmanTrack(double pt, double eta, double mass, int charge, double phi=0,double x=0,double y=0,double z=0);
+  int TransportKalmanTrackWithMS(KMCProbe *probTr, Bool_t applyMatCorr=kTRUE);
+  Bool_t PropagateToLayer(KMCProbe* trc, KMCLayer* lr, int dir) const;
+  Bool_t UpdateTrack(KMCProbe* trc, KMCLayer* lr, KMCCluster* cl) const;
+
+  
   /*  
   Bool_t SolveSingleTrackViaKalman(Double_t mass, Double_t pt, Double_t eta);
   Bool_t SolveSingleTrackViaKalmanMC(int offset=6);
@@ -272,10 +290,6 @@ class KMCDetector : public TNamed {
   void   EliminateUnrelated();
   //
 
-  KMCProbe* PrepareKalmanTrack(double pt, double lambda, double mass, int charge, double phi=0,double x=0,double y=0,double z=0);
-  int TransportKalmanTrackWithMS(KMCProbe *probTr);
-  Bool_t PropagateToLayer(KMCProbe* trc, KMCLayer* lr, int dir) const;
-  Bool_t UpdateTrack(KMCProbe* trc, KMCLayer* lr, KMCCluster* cl, Bool_t goToCluster=kTRUE) const;
  
   //
   Bool_t   GetUseBackground()               const {return fUseBackground;}
@@ -288,14 +302,8 @@ class KMCDetector : public TNamed {
   Double_t PropagateBack(KMCProbe* trc);
   //
   // definition of reconstructable track
-  void     RequireMaxChi2Cl(double cut=25.)           {fMaxChi2Cl = cut>0 ? cut:9; fMaxChi2ClSQ = TMath::Sqrt(fMaxChi2Cl);}
-  void     RequireMinITSHits(Int_t n=4)               {fMinITSHits = n;}
-  void     RequireMaxNormChi2NDF(double cut=5.)       {fMaxNormChi2NDF = cut>0 ? cut:9;}
   void     RequirePattern(UInt_t *patt, int groups);
   //
-  Double_t GetMaxChi2Cl()                      const {return fMaxChi2Cl;}
-  Double_t GetMaxNormChi2NDFusterKMC()              const {return fMaxNormChi2NDF;}
-  Int_t    GetMinITSHits()                     const {return fMinITSHits;}
   //
   Double_t GetUpdCalls()                       const {return fUpdCalls;}
   TH2F*    GetHMCLrResidRPhi()                 const {return fHMCLrResidRPhi;}
@@ -326,7 +334,8 @@ class KMCDetector : public TNamed {
   // reconstruction settings
   Double_t fMaxChi2Cl;   // max cluster-track chi2 
   Double_t fMaxNormChi2NDF;// max chi2/NDF to accept
-  Int_t    fMinITSHits;  // min ITS hits in track to accept
+  Int_t    fMinHits;  // min ITS hits in track to accept
+  Double_t fMaxSnp;      // max allowe snp
   //
   KMCProbe fProbe;
   //

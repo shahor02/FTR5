@@ -395,7 +395,11 @@ TNamed("test_detector","detector"),
   fBFieldG(5.),
   fIntegrationTime(0.02), // in ms
   fdNdEtaCent(2000),       // Multiplicity
-  fDensFactorEta(1)
+  fDensFactorEta(1),
+  fMaxChi2Cl(30.),
+  fMaxNormChi2NDF(7.),
+  fMinHits(4),
+  fMaxSnp(0.8)
 {
   //
   // default constructor
@@ -413,7 +417,11 @@ KMCDetector::KMCDetector(char *name, char *title)
     fBFieldG(5.),
     fIntegrationTime(0.02), // in ms
     fdNdEtaCent(2000),       // Multiplicity
-    fDensFactorEta(1.)
+    fDensFactorEta(1.),
+    fMaxChi2Cl(30.),
+    fMaxNormChi2NDF(7.),
+    fMinHits(4),
+    fMaxSnp(0.8)
 
 {
   //
@@ -463,6 +471,7 @@ void KMCDetector::AddLayer(char *name, Float_t radius, Float_t x2X0, Float_t xrh
     }
     //
     ClassifyLayers();
+    fNLayers++;
     //
   } else {
     printf("Layer with the name %s does already exist\n",name);
@@ -695,17 +704,13 @@ void KMCDetector::ApplyMS(KMCProbe* trc, double x2X0) const
   //
 }
 
-
-
-///LAST
-
-/*
-KMCProbe* KMCDetector::PrepareKalmanTrack(double pt, double lambda, double mass, int charge, double phi, double x,double y, double z)
+KMCProbe* KMCDetector::PrepareKalmanTrack(double pt, double eta, double mass, int charge, double phi, double x,double y, double z)
 {
   // Prepare trackable Kalman track at the farthest position
   //
   // Set track parameters
   // Assume track started at (0,0,0) and shoots out on the X axis, and B field is on the Z axis
+  double lambda = TMath::Pi()/2.0 - 2.0*TMath::ATan(TMath::Exp(-eta)); 
   fProbe.Reset();
   fProbe.SetMass(mass);
   KMCProbe* probe = new KMCProbe(fProbe);
@@ -724,31 +729,15 @@ KMCProbe* KMCDetector::PrepareKalmanTrack(double pt, double lambda, double mass,
   trCov[KMCProbe::kY2] = trCov[KMCProbe::kZ2] = trCov[KMCProbe::kSnp2] = trCov[KMCProbe::kTgl2] = trCov[KMCProbe::kPtI2] = 1e-20;
   fProbe = *probe;  // store original track
   //
-  // propagate to last layer layer reachable with max snp
-  fFirstActiveLayerTracked = -1;
-  fLastActiveLayerTracked = 0;
-  Bool_t res = TransportKalmanTrackWithMS(&probe);
-  double r = TMath::Sqrt(x*x+y*y);
-  for (Int_t j=0; j<=fLastActiveLayer; j++) {
-    KMCLayer* lr = GetLayer(j);
-    lr->Reset();
-    //
-    if (lr->GetRadius()>r) continue;
-    if (!PropagateToLayer(probe,lr,1)) break;
-    if (!probe->CorrectForMeanMaterial(lr, kFALSE)) break;
-    //
-    lr->fClCorr.Set(probe->GetY(),probe->GetZ(), probe->GetX(), probe->GetAlpha());
-    if (!lr->IsDead()) fLastActiveLayerTracked = j;
-  }
+  Bool_t res = TransportKalmanTrackWithMS(probe);
   probe->ResetCovMat();// reset cov.matrix
-
   //
   return probe;
 }
 
 
 //________________________________________________________________________________
-int KMCDetector::TransportKalmanTrackWithMS(KMCProbe *probTr)
+int KMCDetector::TransportKalmanTrackWithMS(KMCProbe *probTr, Bool_t applyMatCorr)
 {
   // Transport track till layer maxLr, applying random MS
   //
@@ -756,27 +745,26 @@ int KMCDetector::TransportKalmanTrackWithMS(KMCProbe *probTr)
   double r = TMath::Sqrt(probTr->GetX()*probTr->GetX()+probTr->GetY()*probTr->GetY());
   fFirstActiveLayerTracked = -1;
   fLastActiveLayerTracked = 0;
-  for (Int_t j=0; j<fLastActiveLayer; j++) {
-    KMCLayer* lr0 = (KMCLayer*)fLayers.At(j);
-    if (!lr0->IsDead()) lr0->ResetBgClusters();
-    if (lr0->GetRadius() < r) continue;
+  for (Int_t j=0; j<fNLayers; j++) {
+    if (j>fLastActiveLayer) continue;
+    KMCLayer* lr = (KMCLayer*)fLayers.At(j);
+    if (lr->GetRadius() <= r) continue;
     if (!PropagateToLayer(probTr,lr,1)) break;
     if (TMath::Abs(probTr->GetSnp())>fMaxSnp) break;
- 
-    if (lr0->fx2X0 > 0) {
-      ApplyMS(probTr,lr0->fx2X0); // apply MS
-      if (!probTr->CorrectForMeanMaterial(lr0,kFALSE)) break; 
+    if (lr->GetRadL()>0 && applyMatCorr) {
+      ApplyMS(probTr,lr->GetRadL()); // apply MS
+      if (!probTr->CorrectForMeanMaterial(lr,kFALSE)) break; 
     }
     //
-    if (!lr0->IsDead()) continue;
-    // store randomized cluster local coordinates and phi
+    if (lr->IsDead()) continue;
+    if (fFirstActiveLayerTracked<0) fFirstActiveLayerTracked = lr->GetActiveID();
+    fLastActiveLayerTracked = lr->GetActiveID();
     
+    // store randomized cluster local coordinates and phi
     double rz,ry;
     gRandom->Rannor(rz,ry);
     lr->GetMCCluster()->Set(probTr->GetY()+ry*lr->GetPhiRes(),probTr->GetZ()+rz*lr->GetZRes(), 
 			    probTr->GetX(), probTr->GetAlpha() );
-    if (nActLrOK==0) fFirstActiveLayerTracked = j;
-    fLastActiveLayerTracked = j;
     nActLrOK++;
     //
   }
@@ -784,6 +772,53 @@ int KMCDetector::TransportKalmanTrackWithMS(KMCProbe *probTr)
   return nActLrOK;
 }
 
+//____________________________________________________________________________
+Bool_t KMCDetector::PropagateToLayer(KMCProbe* trc, KMCLayer* lr, int dir) const
+{
+  // bring the track to layer and rotat to frame normal to its surface
+  if (!trc->PropagateToR(lr->fR,fBFieldG, dir)) return kFALSE;
+  //
+  // rotate to frame with X axis normal to the surface (defined by ideal track)
+  if (!lr->IsVertex()) {
+    double phi = trc->PhiPos();
+    if ( TMath::Abs(TMath::Abs(phi)-TMath::Pi()/2)<1e-3) phi = 0;
+    if (!trc->Rotate(phi)) {
+      return kFALSE;
+    }
+  }
+  //
+  return kTRUE;
+}
+
+//____________________________________________________________________________
+Bool_t KMCDetector::UpdateTrack(KMCProbe* trc, KMCLayer* lr, KMCCluster* cl) const
+{
+  // update track with measured cluster
+  // propagate to cluster
+  double meas[2] = {cl->GetY(),cl->GetZ()}; // ideal cluster coordinate
+  double measErr2[3] = {lr->fPhiRes*lr->fPhiRes,0,lr->fZRes*lr->fZRes};
+  //
+  if (!trc->PropagateToCluster(cl,fBFieldG)) return kFALSE; // track was not propagated to cluster frame
+  //
+  double chi2 = trc->GetPredictedChi2(meas,measErr2);
+  //  if (chi2>fMaxChi2Cl) return kTRUE; // chi2 is too large
+  //  
+  if (!trc->Update(meas,measErr2)) {
+    AliDebug(2,Form("layer %s: Failed to update the track by measurement {%.3f,%3f} err {%.3e %.3e %.3e}",
+		    lr->GetName(),meas[0],meas[1], measErr2[0],measErr2[1],measErr2[2]));
+    if (AliLog::GetGlobalDebugLevel()>1) trc->Print("l");
+    return kFALSE;
+  }
+  trc->AddHit(lr->GetActiveID(), chi2);
+  //
+  return kTRUE;
+}
+
+
+
+///LAST
+
+/*
 //________________________________________________________________________________
 Bool_t KMCDetector::SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, Double_t phi,
 				     Double_t xv, Double_t yv, Double_t zv,
@@ -792,8 +827,7 @@ Bool_t KMCDetector::SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, D
   // analytic and fullMC of track with given kinematics.
   //
   // prepare kalman track
-  double lambda = TMath::Pi()/2.0 - 2.0*TMath::ATan(TMath::Exp(-eta)); 
-  KMCProbe* probe = PrepareKalmanTrack(pt,lambda,mass,charge,phi,xv,yv,zv);
+  KMCProbe* probe = PrepareKalmanTrack(pt,eta,mass,charge,phi,xv,yv,zv);
 
   
   if (!SolveSingleTrackViaKalman(mass,pt,eta)) return kFALSE;
@@ -1175,47 +1209,7 @@ Bool_t KMCDetector::SolveSingleTrackViaKalmanMC(int offset)
   return kTRUE;
 }
 
-//____________________________________________________________________________
-Bool_t KMCDetector::PropagateToLayer(KMCProbe* trc, KMCLayer* lr, int dir) const
-{
-  // bring the track to layer and rotat to frame normal to its surface
-  if (!trc->PropagateToR(lr->fR,fBFieldG, dir)) return kFALSE;
-  //
-  // rotate to frame with X axis normal to the surface (defined by ideal track)
-  if (!lr->IsVertex()) {
-    double phi = trc->PhiPos();
-    if ( TMath::Abs(TMath::Abs(phi)-TMath::Pi()/2)<1e-3) phi = 0;
-    if (!trc->Rotate(phi)) {
-      return kFALSE;
-    }
-  }
-  //
-  return kTRUE;
-}
 
-//____________________________________________________________________________
-Bool_t KMCDetector::UpdateTrack(KMCProbe* trc, KMCLayer* lr, KMCCluster* cl, Bool_t goToCluster) const
-{
-  // update track with measured cluster
-  // propagate to cluster
-  double meas[2] = {cl->GetY(),cl->GetZ()}; // ideal cluster coordinate
-  double measErr2[3] = {lr->fPhiRes*lr->fPhiRes,0,lr->fZRes*lr->fZRes};
-  //
-  if (goToCluster) if (!trc->PropagateToCluster(cl,fBFieldG)) return kFALSE; // track was not propagated to cluster frame
-  //
-  double chi2 = trc->GetPredictedChi2(meas,measErr2);
-  //  if (chi2>fMaxChi2Cl) return kTRUE; // chi2 is too large
-  //  
-  if (!trc->Update(meas,measErr2)) {
-    AliDebug(2,Form("layer %s: Failed to update the track by measurement {%.3f,%3f} err {%.3e %.3e %.3e}",
-		    lr->GetName(),meas[0],meas[1], measErr2[0],measErr2[1],measErr2[2]));
-    if (AliLog::GetGlobalDebugLevel()>1) trc->Print("l");
-    return kFALSE;
-  }
-  trc->AddHit(lr->GetActiveID(), chi2);
-  //
-  return kTRUE;
-}
 
 //____________________________________________________________________________
 Int_t KMCDetector::GenBgClusters(KMCLayer* lr)
