@@ -1,6 +1,7 @@
 #ifndef DETECTORK_H
 #define DETECTORK_H
 
+#include <TRandom3.h>
 #include <TNamed.h>
 #include "AliLog.h"
 #include <TList.h>
@@ -141,12 +142,13 @@ class KMCCluster : public TObject {
   //
   void    Kill(Bool_t v=kTRUE)          {SetBit(kBitKilled,v);}
   Bool_t  IsKilled()              const {return TestBit(kBitKilled);}
+  Bool_t  IsValid()               const {return fID!=kDummy && !IsKilled();}
   Float_t fY; 
   Float_t fZ; 
   Float_t fX;
   Float_t fPhi;
   Int_t   fID;
-  void Set(Float_t y, Float_t z, Float_t x, Float_t phi) {fY=y; fZ=z; fX=x; fPhi=phi; ResetBit(kBitKilled);}
+  void Set(Float_t y, Float_t z, Float_t x, Float_t phi, int id) {fY=y; fZ=z; fX=x; fPhi=phi; ResetBit(kBitKilled); fID = id;}
   virtual void Print(Option_t * = 0) const;
   ClassDef(KMCCluster,1);
 };
@@ -188,8 +190,20 @@ public:
   //
   void Reset() {
     if (IsActive()) {fClMC.Reset();}
+    fExtInward[0] = fExtOutward[0] = fExtInward[1] = fExtOutward[1] = -1.;
   }
   //
+  void SetExtInward(const KMCProbe* probe) {
+    fExtInward[0] = probe->GetSigmaY2();
+    fExtInward[1] = probe->GetSigmaZ2();
+  }
+  void SetExtOutward(const KMCProbe* probe) {
+    fExtOutward[0] = probe->GetSigmaY2();
+    fExtOutward[1] = probe->GetSigmaZ2();
+  }
+  //
+  Float_t* GetExtInward() const {return (Float_t*)&fExtInward[0];}
+  Float_t* GetExtOutward() const {return (Float_t*)&fExtOutward[0];}
   //
   Float_t fR; 
   Float_t fx2X0;
@@ -197,6 +211,8 @@ public:
   Float_t fPhiRes; 
   Float_t fZRes;   
   Float_t fEff;
+  Float_t fExtInward[2]; // estimate from inward propagation
+  Float_t fExtOutward[2]; // estimate from outward propagation  
   Bool_t  fIsDead;
   Int_t   fActiveID;   // active layer id
   //
@@ -255,24 +271,23 @@ class KMCDetector : public TNamed {
   void   ApplyMS(KMCProbe* trc,  double x2x0) const;
 
   // method to extend AliExternalTrackParam functionality
-  Bool_t IsZero(double val, double tol=1e-9) const {return TMath::Abs(val)<tol;}
-  TList *GetLayers()                   const {return (TList*)&fLayers;}
+  Bool_t    IsZero(double val, double tol=1e-9) const {return TMath::Abs(val)<tol;}
+  TList*    GetLayers()                   const {return (TList*)&fLayers;}
   KMCLayer* GetLayer(Int_t i)          const {return (KMCLayer*) fLayers.At(i);}
   KMCLayer* GetActiveLayer(Int_t actID)    const {int pid=GetLayerID(actID); return pid<0 ? 0:GetLayer(pid);}
   KMCLayer* GetLayer(const char* name) const {return (KMCLayer*) fLayers.FindObject(name);}
-  KMCProbe* GetProbeTrack()       const {return (KMCProbe*)&fProbe;}
-  void   ClassifyLayers();
-  void   Reset() { for (int i=fNLayers;i--;) GetLayer(i)->Reset(); }                  
-  void SetMaxSnp(double v) { fMaxSnp = v; }
-  Double_t GetMaxSnp() const { return fMaxSnp; }
-  void    SetMaxChi2Cl(double cut)  {fMaxChi2Cl = cut>0 ? cut:9;}
-  void    SetMinHits(Int_t n=4)     {fMinHits = n;}
-  void    SetMaxNormChi2NDF(double cut=5.) {fMaxNormChi2NDF = cut>0 ? cut:9;}
+  KMCProbe* GetProbeTrack()       const {return (KMCProbe*)&fProbeInMC0;}
+  void      ClassifyLayers();
+  void      Reset() { for (int i=fNLayers;i--;) GetLayer(i)->Reset(); }                  
+  void      SetMaxSnp(double v) { fMaxSnp = v; }
+  Double_t  GetMaxSnp() const { return fMaxSnp; }
+  void      SetMaxChi2Cl(double cut)  {fMaxChi2Cl = cut>0 ? cut:9;}
+  void      SetMinHits(Int_t n=4)     {fMinHits = n;}
+  void      SetMaxNormChi2NDF(double cut=5.) {fMaxNormChi2NDF = cut>0 ? cut:9;}
 
   Double_t GetMaxChi2Cl()                   const {return fMaxChi2Cl;}
   Double_t GetMaxNormChi2NDF()              const {return fMaxNormChi2NDF;}
   Int_t    GetMinHits()                     const {return fMinHits;}
-
 
   
   KMCProbe* PrepareKalmanTrack(double pt, double eta, double mass, int charge, double phi=0,double x=0,double y=0,double z=0);
@@ -280,6 +295,7 @@ class KMCDetector : public TNamed {
   Bool_t PropagateToLayer(KMCProbe* trc, KMCLayer* lr, int dir) const;
   Bool_t UpdateTrack(KMCProbe* trc, KMCLayer* lr, KMCCluster* cl) const;
 
+  Bool_t SolveSingleTrackAnalytically();
   
   /*  
   Bool_t SolveSingleTrackViaKalman(Double_t mass, Double_t pt, Double_t eta);
@@ -337,7 +353,8 @@ class KMCDetector : public TNamed {
   Int_t    fMinHits;  // min ITS hits in track to accept
   Double_t fMaxSnp;      // max allowe snp
   //
-  KMCProbe fProbe;
+  KMCProbe fProbeInMC0; // initially provided probe
+  KMCProbe fProbeOutMC; // probe propagated to outer radius with material effects
   //
   static Double_t fgVtxConstraint[2];  // if both positive, the vertex is used as constraint (accounted in chi2 but not in update)
   ClassDef(KMCDetector,1);

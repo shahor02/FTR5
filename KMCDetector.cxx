@@ -13,7 +13,6 @@
 #include <TCanvas.h>
 #include <TEllipse.h>
 #include <TText.h>
-#include <TRandom3.h>
 #include <TGraphErrors.h>
 #include <TStopwatch.h>
 #include <TH2.h>
@@ -506,7 +505,7 @@ Int_t KMCDetector::GetLayerID(int actID) const
 {
   // find physical layer id from active id
   if (actID<0 || actID>fNActiveLayers) return -1;
-  for (int i=fLastActiveLayer; i--;) {
+  for (int i=fLastActiveLayer+1; i--;) {
     if (GetLayer(i)->GetActiveID()==actID) return i;   
   }
   return -1;
@@ -711,9 +710,9 @@ KMCProbe* KMCDetector::PrepareKalmanTrack(double pt, double eta, double mass, in
   // Set track parameters
   // Assume track started at (0,0,0) and shoots out on the X axis, and B field is on the Z axis
   double lambda = TMath::Pi()/2.0 - 2.0*TMath::ATan(TMath::Exp(-eta)); 
-  fProbe.Reset();
-  fProbe.SetMass(mass);
-  KMCProbe* probe = new KMCProbe(fProbe);
+  fProbeInMC0.Reset();
+  fProbeInMC0.SetMass(mass);
+  KMCProbe* probe = new KMCProbe(fProbeInMC0);
   double *trPars = (double*)probe->GetParameter();
   double *trCov  = (double*)probe->GetCovariance();
   double xyz[3] = {x,y,z};
@@ -721,16 +720,17 @@ KMCProbe* KMCDetector::PrepareKalmanTrack(double pt, double eta, double mass, in
   probe->Set(xyz[0],phi,trPars,trCov);
   trPars[KMCProbe::kY] = xyz[1];
   trPars[KMCProbe::kZ] = xyz[2];
-  trPars[KMCProbe::kSnp] = 0;                       //            track along X axis at the vertex
-  trPars[KMCProbe::kTgl] = TMath::Tan(lambda);                // dip
-  trPars[KMCProbe::kPtI] = charge/pt;               //            q/pt      
+  trPars[KMCProbe::kSnp] = 0;                       // track along X axis at the vertex
+  trPars[KMCProbe::kTgl] = TMath::Tan(lambda);      // dip
+  trPars[KMCProbe::kPtI] = charge/pt;               // q/pt      
   //
   // put tiny errors to propagate to the outer-most radius
   trCov[KMCProbe::kY2] = trCov[KMCProbe::kZ2] = trCov[KMCProbe::kSnp2] = trCov[KMCProbe::kTgl2] = trCov[KMCProbe::kPtI2] = 1e-20;
-  fProbe = *probe;  // store original track
+  fProbeInMC0 = *probe;  // store original track
   //
   Bool_t res = TransportKalmanTrackWithMS(probe);
   probe->ResetCovMat();// reset cov.matrix
+  fProbeOutMC = *probe; // store propagated track
   //
   return probe;
 }
@@ -764,7 +764,10 @@ int KMCDetector::TransportKalmanTrackWithMS(KMCProbe *probTr, Bool_t applyMatCor
     double rz,ry;
     gRandom->Rannor(rz,ry);
     lr->GetMCCluster()->Set(probTr->GetY()+ry*lr->GetPhiRes(),probTr->GetZ()+rz*lr->GetZRes(), 
-			    probTr->GetX(), probTr->GetAlpha() );
+			    probTr->GetX(), probTr->GetAlpha(), -1);
+    if (lr->GetLayerEff()<gRandom->Rndm()) { // impose inefficiency
+      lr->GetMCCluster()->Kill(kTRUE);
+    }
     nActLrOK++;
     //
   }
@@ -798,7 +801,7 @@ Bool_t KMCDetector::UpdateTrack(KMCProbe* trc, KMCLayer* lr, KMCCluster* cl) con
   double meas[2] = {cl->GetY(),cl->GetZ()}; // ideal cluster coordinate
   double measErr2[3] = {lr->fPhiRes*lr->fPhiRes,0,lr->fZRes*lr->fZRes};
   //
-  if (!trc->PropagateToCluster(cl,fBFieldG)) return kFALSE; // track was not propagated to cluster frame
+  
   //
   double chi2 = trc->GetPredictedChi2(meas,measErr2);
   //  if (chi2>fMaxChi2Cl) return kTRUE; // chi2 is too large
@@ -814,28 +817,70 @@ Bool_t KMCDetector::UpdateTrack(KMCProbe* trc, KMCLayer* lr, KMCCluster* cl) con
   return kTRUE;
 }
 
+Bool_t KMCDetector::SolveSingleTrackAnalytically()
+{
+  // find analytical solution for given seed
 
+  if (fLastActiveLayerTracked<0) return kFALSE; // no hits
+  
+  // do backward propagation 
+  KMCProbe probe = fProbeOutMC;
+  KMCCluster* cl = 0;
+  // covariance matrix must be already reset
+  int innerTracked = GetLayerID(fFirstActiveLayerTracked);
+  probe.SetOuterChecked(fLastActiveLayerTracked);
+
+  printf("ProbeIni: "); probe.Print("t");
+  
+  for (int ilr = GetLayerID(fLastActiveLayerTracked)+1 ;ilr--;) {
+
+    if (ilr<innerTracked) break;
+
+    KMCLayer *lr = GetLayer(ilr);
+    
+    if (!lr->IsDead()) {
+      probe.SetInnerChecked(lr->GetActiveID());
+      cl = lr->GetMCCluster();      
+      if (!probe.PropagateToCluster(cl,fBFieldG)) return kFALSE; // track was not propagated to cluster frame
+      if (TMath::Abs(probe.GetSnp())>GetMaxSnp()) return kFALSE; // too large snp	
+      lr->SetExtInward(&probe); // set extrapolation errors
+      if (!cl->IsKilled()) { // update on this layer
+	if (!UpdateTrack(&probe, lr, cl)) return kFALSE;
+      }
+    }					
+    else { // consider as passive layer
+      if (!probe.PropagateToR(lr->GetRadius(), fBFieldG)) return kFALSE; 
+      lr->SetExtInward(&probe);
+    }    
+    if (!probe.CorrectForMeanMaterial(lr,kTRUE)) return kFALSE;
+
+    printf("Probe@%d: ",ilr); probe.Print("t");
+    
+  }
+  
+}
 
 ///LAST
 
 /*
+
+
 //________________________________________________________________________________
 Bool_t KMCDetector::SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, Double_t phi,
-				     Double_t xv, Double_t yv, Double_t zv,
-				     int charge)
+				     Double_t xv, Double_t yv, Double_t zv, int charge)
 {
   // analytic and fullMC of track with given kinematics.
   //
   // prepare kalman track
   KMCProbe* probe = PrepareKalmanTrack(pt,eta,mass,charge,phi,xv,yv,zv);
 
-  
+  SolveSingleTrackAnalytically();
   if (!SolveSingleTrackViaKalman(mass,pt,eta)) return kFALSE;
   //
   // Store non-updated track errors of inward propagated seed >>>>>>>>
   int maxLr = fLastActiveITSLayer + offset;
   if (maxLr >= fLastActiveLayerTracked-1) maxLr = fLastActiveLayerTracked;
-  KMCProbe probeTmp = fProbe; // original probe at vertex
+  KMCProbe probeTmp = fProbeInMC0; // original probe at vertex
   KMCLayer* lr = 0;
   for (Int_t j=1; j<=maxLr; j++) {
     lr = GetLayer(j);
@@ -862,7 +907,7 @@ Bool_t KMCDetector::SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, D
   for (int i=0;i<nsm;i++) {
     KMCTrackSummary* tsm = (KMCTrackSummary*)sumArr->At(i);
     if (!tsm) continue;
-    tsm->SetRefProbe( GetProbeTrack() ); // attach reference track (generated)
+    tsm->SetRefProbeInMC0( GetProbeTrack() ); // attach reference track (generated)
     tsm->SetAnProbe( vtx->GetAnProbe() ); // attach analitycal solution
   }
   //
@@ -889,6 +934,8 @@ Bool_t KMCDetector::SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, D
   printf("Total time: "); sw.Print();
   return kTRUE;
 }
+
+
 
 //________________________________________________________________________________
 KMCProbe* KMCDetector::KalmanSmooth(int actLr, int actMin,int actMax) const
@@ -1033,7 +1080,7 @@ KMCProbe* KMCDetector::KalmanSmoothFull(int actLr, int actMin,int actMax) const
 Bool_t KMCDetector::SolveSingleTrackViaKalman(Double_t mass, Double_t pt, Double_t eta)
 {
   // analytical estimate of tracking resolutions
-  //  fProbe.SetUseLogTermMS(kTRUE);
+  //  fProbeInMC0.SetUseLogTermMS(kTRUE);
   //
   if (fMinITSHits>fNActiveITSLayers) {fMinITSHits = fNActiveITSLayers; printf("Redefined request of min N ITS hits to %d\n",fMinITSHits);}
   if (TMath::Abs(eta)<1e-3) fDensFactorEta = 1.;
@@ -1088,7 +1135,7 @@ Bool_t KMCDetector::SolveSingleTrackViaKalmanMC(int offset)
   //
   // The MC tracking will be done starting from fLastActiveITSLayer + offset (before analytical estimate will be used)
   //
-  // At this point, the fProbe contains the track params generated at vertex.
+  // At this point, the fProbeInMC0 contains the track params generated at vertex.
   // Clone it and propagate to target layer to generate hit positions affected by MS
   //
   fUpdCalls = 0.;
@@ -1097,7 +1144,7 @@ Bool_t KMCDetector::SolveSingleTrackViaKalmanMC(int offset)
   if (maxLr >= fLastActiveLayerTracked-1) maxLr = fLastActiveLayerTracked;
   ResetMCTracks(maxLr);
   KMCLayer* lr = (KMCLayer*)fLayers.At(maxLr);
-  currTr = lr->AddMCTrack(&fProbe); // start with original track at vertex
+  currTr = lr->AddMCTrack(&fProbeInMC0); // start with original track at vertex
   //
   if (!TransportKalmanTrackWithMS(currTr, maxLr)) return kFALSE; // transport it to outermost layer where full MC is done
   //
