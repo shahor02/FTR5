@@ -776,7 +776,7 @@ int KMCDetector::TransportKalmanTrackWithMS(KMCProbe *probTr, Bool_t applyMatCor
 }
 
 //____________________________________________________________________________
-Bool_t KMCDetector::PropagateToLayer(KMCProbe* trc, KMCLayer* lr, int dir) const
+Bool_t KMCDetector::PropagateToLayer(KMCProbe* trc, const KMCLayer* lr, int dir) const
 {
   // bring the track to layer and rotat to frame normal to its surface
   if (!trc->PropagateToR(lr->fR,fBFieldG, dir)) return kFALSE;
@@ -858,6 +858,50 @@ Bool_t KMCDetector::SolveSingleTrackAnalytically()
     
   }
   
+}
+
+Bool_t KMCDetector::ExtrapolateToR(KMCProbe* probe, double r) const
+{
+  // go to radius correcting for materieals
+  if (!probe) return kFALSE;
+  KMCProbe probeC = *probe;
+  double curR2 = probe->GetX()*probe->GetX()+probe->GetY()*probe->GetY();
+  int dir = 0;
+  int lrId0 = -1, lrIdTgt = -1; // 1st layer to cross and last layer in givem direction
+  if (curR2 < r*r) {
+    dir = 1; // outward
+    lrIdTgt = fNLayers;
+    for (int ilr=0;ilr<fNLayers;ilr++) {
+      KMCLayer* lr = GetLayer(ilr);
+      if (lr->GetRadius()*lr->GetRadius()>curR2) {
+	lrId0 = ilr;
+	break;
+      }
+    }
+  }
+  else {
+    dir = -1; // outward
+    lrIdTgt = -1;
+    for (int ilr=fNLayers;ilr--;) {
+      KMCLayer* lr = GetLayer(ilr);
+      if (lr->GetRadius()*lr->GetRadius()<curR2) {
+	lrId0 = ilr;
+	break;
+      }
+    }
+  }
+  // cross layers if needed
+  if (lrId0!=-1) {
+    for (int ilr=lrId0;ilr!=lrIdTgt;ilr+=dir) {
+      const KMCLayer* lr = GetLayer(ilr);
+      if (!PropagateToLayer(&probeC,lr,dir)) return kFALSE; // faile to propagate
+      if (!probeC.CorrectForMeanMaterial(lr,dir)) return kFALSE;
+    }
+  }
+  // now propagate to final R
+  if (!probeC.PropagateToR(r,fBFieldG,dir)) return kFALSE;
+  *probe = probeC;
+  return kTRUE;
 }
 
 ///LAST

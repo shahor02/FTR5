@@ -292,7 +292,8 @@ class KMCDetector : public TNamed {
   
   KMCProbe* PrepareKalmanTrack(double pt, double eta, double mass, int charge, double phi=0,double x=0,double y=0,double z=0);
   int TransportKalmanTrackWithMS(KMCProbe *probTr, Bool_t applyMatCorr=kTRUE);
-  Bool_t PropagateToLayer(KMCProbe* trc, KMCLayer* lr, int dir) const;
+  Bool_t PropagateToLayer(KMCProbe* trc, const KMCLayer* lr, int dir) const;
+  Bool_t ExtrapolateToR(KMCProbe* probe, double r) const;
   Bool_t UpdateTrack(KMCProbe* trc, KMCLayer* lr, KMCCluster* cl) const;
 
   Bool_t SolveSingleTrackAnalytically();
