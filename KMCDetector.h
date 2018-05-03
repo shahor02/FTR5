@@ -36,6 +36,7 @@ class KMCProbe : public AliExternalTrackParam {
   virtual   void   Print(Option_t* option = "") const;
   virtual   void   Reset();
   void      ResetCovMat();
+  void      ResetTrackingInfo();
   //
   void      Kill(Bool_t v=kTRUE)                          {SetBit(kBitKilled,v);}
   Bool_t    IsKilled()                              const {return TestBit(kBitKilled);}
@@ -234,7 +235,7 @@ class KMCDetector : public TNamed {
   void AddLayer(char *name, Float_t radius, Float_t radL, Float_t xrho=0., Float_t phiRes=-1, Float_t zRes=-1, Float_t eff=-1);
   Int_t GetLayerID(Int_t actID) const;
 
-  void PrintLayout(); 
+  virtual  void Print(const Option_t* opt) const; 
   //  void PlotLayout(Int_t plotDead = kTRUE);
   
   void SetBField(Float_t bfield) {fBFieldG = bfield*10; }

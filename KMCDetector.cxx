@@ -108,6 +108,18 @@ void KMCProbe::Reset()
   AliExternalTrackParam::Reset();
 }
 
+//__________________________________________________________________________
+void KMCProbe::ResetTrackingInfo()
+{
+  fMass = 0.14;
+  fChi2 = 0;
+  fHits = fFakes = 0;
+  fNHits = fNHitsFake = 0;
+  fInnerChecked = fOuterChecked = -1;
+  ResetCovMat();
+  TObject::Clear(); // to clean bits?
+}
+
 
 //__________________________________________________________________________
 void KMCProbe::ResetCovMat()
@@ -370,12 +382,16 @@ KMCLayer::KMCLayer(char *name) :
 //__________________________________________________________________________
 void KMCLayer::Print(Option_t *opt) const
 {
-  printf("Lr%3d(A%3d) %10s R=%5.1f X2X0=%.3f XRho=%.3f SigY=%.4f SigZ=%.4f Eff:%4.2f\n",
-	 GetUniqueID(),fActiveID,GetName(), fR, fx2X0,fXRho,fPhiRes,fZRes,fEff);
   TString opts = opt; opts.ToLower();
-  if (opts.Contains("c")) {
-    printf("Cluster: MC: %+7.4f:%+7.4f\n",fClMC.fY,fClMC.fZ);
+  printf("Lr%3d(A%3d) %10s R=%5.1f X2X0=%.3f XRho=%.3f SigY=%+.5f SigZ=%+.5f Eff:%+4.2f ",
+	 GetUniqueID(),fActiveID,GetName(), fR, fx2X0,fXRho,fPhiRes,fZRes,fEff);
+  if (opts.Contains("t")) { // print tracking info
+    printf("ExtInw: %+6.4f %+6.4f ExtOut: %+6.4f %+6.4f ",fExtInward[0],fExtInward[1],fExtOutward[0],fExtOutward[1]);
   }
+  if (opts.Contains("c")) {
+    printf("Cluster: Id: %+3d: %+7.4f:%+7.4f",fClMC.GetID(), fClMC.GetY(),fClMC.GetZ());
+  }
+  printf("\n");
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -511,7 +527,7 @@ Int_t KMCDetector::GetLayerID(int actID) const
   return -1;
 }
 
-void KMCDetector::PrintLayout() {
+void KMCDetector::Print(const Option_t* opt) const {
   //
   // Prints the detector layout
   //
@@ -521,12 +537,13 @@ void KMCDetector::PrintLayout() {
 
   for (Int_t i = 0; i<fLayers.GetEntries(); i++) {
     KMCLayer* tmp = (KMCLayer*)fLayers.At(i);
+    tmp->Print(opt);
     
-    printf("%d. %s \t %03.2f   \t%1.4f\t  ",i, tmp->GetName(), tmp->GetRadius(), tmp->GetRadL() );
-    if (tmp->IsDead()) printf("  -  ");
-    else               printf("%3.0f   ",tmp->GetPhiRes()*10000);
-    if (tmp->IsDead()) printf("  -\n");
-    else               printf("%3.0f\n",tmp->GetZRes()*10000);
+    // printf("%d. %s \t %03.2f   \t%1.4f\t  ",i, tmp->GetName(), tmp->GetRadius(), tmp->GetRadL() );
+    // if (tmp->IsDead()) printf("  -  ");
+    // else               printf("%3.0f   ",tmp->GetPhiRes()*10000);
+    // if (tmp->IsDead()) printf("  -\n");
+    // else               printf("%3.0f\n",tmp->GetZRes()*10000);
   }
 }
 
@@ -824,39 +841,70 @@ Bool_t KMCDetector::SolveSingleTrackAnalytically()
   if (fLastActiveLayerTracked<0) return kFALSE; // no hits
   
   // do backward propagation 
-  KMCProbe probe = fProbeOutMC;
+  KMCProbe probeInw = fProbeOutMC;
+  probeInw.ResetTrackingInfo();  // used default (pion) mass for tracking
   KMCCluster* cl = 0;
   // covariance matrix must be already reset
   int innerTracked = GetLayerID(fFirstActiveLayerTracked);
-  probe.SetOuterChecked(fLastActiveLayerTracked);
+  int outerTracked = GetLayerID(fLastActiveLayerTracked);
+  probeInw.SetOuterChecked(fLastActiveLayerTracked);
 
-  printf("ProbeIni: "); probe.Print("t");
+  printf("ProbeIni: "); probeInw.Print("t");
+  int innerReached = -1;
   
-  for (int ilr = GetLayerID(fLastActiveLayerTracked)+1 ;ilr--;) {
+  for (int ilr = outerTracked+1 ;ilr--;) {
 
-    if (ilr<innerTracked) break;
+    //if (ilr<innerTracked) break;
 
     KMCLayer *lr = GetLayer(ilr);
     
     if (!lr->IsDead()) {
-      probe.SetInnerChecked(lr->GetActiveID());
       cl = lr->GetMCCluster();      
-      if (!probe.PropagateToCluster(cl,fBFieldG)) return kFALSE; // track was not propagated to cluster frame
-      if (TMath::Abs(probe.GetSnp())>GetMaxSnp()) return kFALSE; // too large snp	
-      lr->SetExtInward(&probe); // set extrapolation errors
+      if (!probeInw.PropagateToCluster(cl,fBFieldG)) break; // track was not propagated to cluster frame
+      if (TMath::Abs(probeInw.GetSnp())>GetMaxSnp()) break; // too large snp	
+      lr->SetExtInward(&probeInw); // set extrapolation errors
+      probeInw.SetInnerChecked(lr->GetActiveID());
       if (!cl->IsKilled()) { // update on this layer
-	if (!UpdateTrack(&probe, lr, cl)) return kFALSE;
+	if (!UpdateTrack(&probeInw, lr, cl)) break;
       }
     }					
     else { // consider as passive layer
-      if (!probe.PropagateToR(lr->GetRadius(), fBFieldG)) return kFALSE; 
-      lr->SetExtInward(&probe);
+      if (!probeInw.PropagateToR(lr->GetRadius(), fBFieldG)) break; 
+      lr->SetExtInward(&probeInw);
     }    
-    if (!probe.CorrectForMeanMaterial(lr,kTRUE)) return kFALSE;
-
-    printf("Probe@%d: ",ilr); probe.Print("t");
+    if (!probeInw.CorrectForMeanMaterial(lr,kTRUE)) return kFALSE;
+    innerReached = ilr;
+    printf("ProbeInw@%d: ",ilr); probeInw.Print("t");
     
   }
+  // do outward propagation
+  KMCProbe probeOut = probeInw;
+  probeOut.ResetTrackingInfo();
+  int outerReached = -1;
+  for (int ilr=innerReached;ilr<fNLayers;ilr++) {
+    KMCLayer *lr = GetLayer(ilr);
+    
+    if (!lr->IsDead()) {
+      cl = lr->GetMCCluster();      
+      if (!probeOut.PropagateToCluster(cl,fBFieldG)) break; // track was not propagated to cluster frame
+      if (TMath::Abs(probeOut.GetSnp())>GetMaxSnp()) break; // too large snp	
+      lr->SetExtOutward(&probeOut); // set extrapolation errors
+      probeOut.SetOuterChecked(lr->GetActiveID());
+      if (!cl->IsKilled()) { // update on this layer
+	if (!UpdateTrack(&probeOut, lr, cl)) break;
+      }
+    }					
+    else { // consider as passive layer
+      if (!probeOut.PropagateToR(lr->GetRadius(), fBFieldG)) break; 
+      lr->SetExtOutward(&probeOut);
+    }    
+    if (!probeOut.CorrectForMeanMaterial(lr,kFALSE)) return kFALSE;
+    outerReached = ilr;
+    printf("ProbeOut@%d: ",ilr); probeOut.Print("t");
+    
+    
+  }
+  
   
 }
 
