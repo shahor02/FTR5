@@ -857,21 +857,17 @@ Bool_t KMCDetector::SolveSingleTrackAnalytically()
     //if (ilr<innerTracked) break;
 
     KMCLayer *lr = GetLayer(ilr);
-    
+    if (!probeInw.PropagateToR(lr->GetRadius(), fBFieldG)) break;
+    if (TMath::Abs(probeInw.GetSnp())>GetMaxSnp()) break; // too large snp
+    lr->SetExtInward(&probeInw); // set extrapolation errors
     if (!lr->IsDead()) {
-      cl = lr->GetMCCluster();      
-      if (!probeInw.PropagateToCluster(cl,fBFieldG)) break; // track was not propagated to cluster frame
-      if (TMath::Abs(probeInw.GetSnp())>GetMaxSnp()) break; // too large snp	
-      lr->SetExtInward(&probeInw); // set extrapolation errors
       probeInw.SetInnerChecked(lr->GetActiveID());
-      if (!cl->IsKilled()) { // update on this layer
+      cl = lr->GetMCCluster();
+      if (cl->IsValid()) {
+	if (!probeInw.PropagateToCluster(cl,fBFieldG)) return kFALSE; // track was not propagated to cluster frame
 	if (!UpdateTrack(&probeInw, lr, cl)) break;
       }
-    }					
-    else { // consider as passive layer
-      if (!probeInw.PropagateToR(lr->GetRadius(), fBFieldG)) break; 
-      lr->SetExtInward(&probeInw);
-    }    
+    }
     if (!probeInw.CorrectForMeanMaterial(lr,kTRUE)) return kFALSE;
     innerReached = ilr;
     printf("ProbeInw@%d: ",ilr); probeInw.Print("t");
