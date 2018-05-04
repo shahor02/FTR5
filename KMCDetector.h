@@ -174,6 +174,7 @@ public:
   enum {kBitVertex=BIT(15)};
   KMCLayer(char *name);
   Float_t GetRadius()     const {return fR;}
+  Float_t GetZMax()       const {return fZMax;}  
   Float_t GetRadL()       const {return fx2X0;}
   Float_t GetXTimesRho()  const {return fXRho;}
   Float_t GetPhiRes()     const {return fPhiRes;}
@@ -187,6 +188,8 @@ public:
   Bool_t IsDead()       const {return fIsDead;}
   Bool_t IsVertex()     const {return TestBit(kBitVertex);}
   //
+  Bool_t InZAcceptane(float z) const {return TMath::Abs(z)<fZMax;}
+
   KMCCluster* GetMCCluster()        {return (KMCCluster*)&fClMC;}
   //
   void Reset() {
@@ -206,7 +209,8 @@ public:
   Float_t* GetExtInward() const {return (Float_t*)&fExtInward[0];}
   Float_t* GetExtOutward() const {return (Float_t*)&fExtOutward[0];}
   //
-  Float_t fR; 
+  Float_t fR;
+  Float_t fZMax;
   Float_t fx2X0;
   Float_t fXRho;    // x*density
   Float_t fPhiRes; 
@@ -228,11 +232,12 @@ public:
 class KMCDetector : public TNamed {
  public:
   enum {kUtilHisto=BIT(14)};
+  enum {kInward = -1, kOutward = 1};
   KMCDetector();
   KMCDetector(char *name,char *title);
   virtual ~KMCDetector();
 
-  void AddLayer(char *name, Float_t radius, Float_t radL, Float_t xrho=0., Float_t phiRes=-1, Float_t zRes=-1, Float_t eff=-1);
+  void AddLayer(char *name, Float_t radius, Float_t zmax, Float_t radL, Float_t xrho=0., Float_t phiRes=-1, Float_t zRes=-1, Float_t eff=-1);
   Int_t GetLayerID(Int_t actID) const;
 
   virtual  void Print(const Option_t* opt) const; 

@@ -289,6 +289,18 @@ Bool_t KMCProbe::PropagateToR(double r, double b, int dir)
   double rr = r*r;
   int iter = 0;
   const double kTiny = 1e-4;
+  double rcurr2 = GetX()*GetX() + GetY()*GetY();
+  if (TMath::Abs(rcurr2 - rr)<kTiny*kTiny) { // just rotate and return
+    if (rr > kAlmost0 && !Rotate(PhiPos())) {
+      if (AliLog::GetGlobalDebugLevel()>2) {
+	printf("Failed to rotate to %f to propagate to R=%f\n",PhiPos(),r); 
+	Print("l"); 
+      }
+      return kFALSE;
+    }
+    return kTRUE;
+  }
+  
   while(1) {
     if (!GetXatLabR(r ,xR, b, dir)) {
       //      printf("Track with pt=%f cannot reach radius %f\n",Pt(),r);
@@ -303,7 +315,7 @@ Bool_t KMCProbe::PropagateToR(double r, double b, int dir)
       }
       return kFALSE;
     }
-    double rcurr2 = xR*xR + GetY()*GetY();
+    rcurr2 = xR*xR + GetY()*GetY();
     if (TMath::Abs(rcurr2-rr)<kTiny || rr<kAlmost0) return kTRUE;
     //
     // two radii correspond to this X...
@@ -383,8 +395,8 @@ KMCLayer::KMCLayer(char *name) :
 void KMCLayer::Print(Option_t *opt) const
 {
   TString opts = opt; opts.ToLower();
-  printf("Lr%3d(A%3d) %10s R=%5.1f X2X0=%.3f XRho=%.3f SigY=%+.5f SigZ=%+.5f Eff:%+4.2f ",
-	 GetUniqueID(),fActiveID,GetName(), fR, fx2X0,fXRho,fPhiRes,fZRes,fEff);
+  printf("Lr%3d(A%3d) %10s R=%5.1f Zmx=%5.1f X2X0=%.3f XRho=%.3f SigY=%+.5f SigZ=%+.5f Eff:%+4.2f ",
+	 GetUniqueID(),fActiveID,GetName(), fR,fZMax, fx2X0,fXRho,fPhiRes,fZRes,fEff);
   if (opts.Contains("t")) { // print tracking info
     printf("ExtInw: %+6.4f %+6.4f ExtOut: %+6.4f %+6.4f ",fExtInward[0],fExtInward[1],fExtOutward[0],fExtOutward[1]);
   }
@@ -451,7 +463,7 @@ KMCDetector::~KMCDetector() { //
   //  delete fLayers;
 }
 
-void KMCDetector::AddLayer(char *name, Float_t radius, Float_t x2X0, Float_t xrho, Float_t phiRes, Float_t zRes, Float_t eff) {
+void KMCDetector::AddLayer(char *name, Float_t radius, Float_t zmax, Float_t x2X0, Float_t xrho, Float_t phiRes, Float_t zRes, Float_t eff) {
   //
   // Add additional layer to the list of layers (ordered by radius)
   // 
@@ -461,6 +473,7 @@ void KMCDetector::AddLayer(char *name, Float_t radius, Float_t x2X0, Float_t xrh
   if (!newLayer) {
     newLayer = new KMCLayer(name);
     newLayer->fR = radius;
+    newLayer->fZMax = zmax;
     newLayer->fx2X0 = x2X0;
     newLayer->fXRho  = xrho;
     newLayer->fPhiRes = phiRes;
@@ -761,14 +774,15 @@ int KMCDetector::TransportKalmanTrackWithMS(KMCProbe *probTr, Bool_t applyMatCor
   int nActLrOK = 0;
   double r = TMath::Sqrt(probTr->GetX()*probTr->GetX()+probTr->GetY()*probTr->GetY());
   fFirstActiveLayerTracked = -1;
-  fLastActiveLayerTracked = 0;
+  fLastActiveLayerTracked = -1;
   for (Int_t j=0; j<fNLayers; j++) {
     if (j>fLastActiveLayer) continue;
     KMCLayer* lr = (KMCLayer*)fLayers.At(j);
     if (lr->GetRadius() <= r) continue;
     if (!PropagateToLayer(probTr,lr,1)) break;
     if (TMath::Abs(probTr->GetSnp())>fMaxSnp) break;
-    if (lr->GetRadL()>0 && applyMatCorr) {
+    Bool_t accZOK = lr->InZAcceptane(probTr->GetZ());
+    if (lr->GetRadL()>0 && applyMatCorr && accZOK) {
       ApplyMS(probTr,lr->GetRadL()); // apply MS
       if (!probTr->CorrectForMeanMaterial(lr,kFALSE)) break; 
     }
@@ -776,6 +790,7 @@ int KMCDetector::TransportKalmanTrackWithMS(KMCProbe *probTr, Bool_t applyMatCor
     if (lr->IsDead()) continue;
     if (fFirstActiveLayerTracked<0) fFirstActiveLayerTracked = lr->GetActiveID();
     fLastActiveLayerTracked = lr->GetActiveID();
+    if (!accZOK) continue;
     
     // store randomized cluster local coordinates and phi
     double rz,ry;
@@ -857,10 +872,11 @@ Bool_t KMCDetector::SolveSingleTrackAnalytically()
     //if (ilr<innerTracked) break;
 
     KMCLayer *lr = GetLayer(ilr);
-    if (!probeInw.PropagateToR(lr->GetRadius(), fBFieldG)) break;
+    if (!probeInw.PropagateToR(lr->GetRadius(), fBFieldG, kInward)) break;
     if (TMath::Abs(probeInw.GetSnp())>GetMaxSnp()) break; // too large snp
-    lr->SetExtInward(&probeInw); // set extrapolation errors
-    if (!lr->IsDead()) {
+    Bool_t accZOK = lr->InZAcceptane(probeInw.GetZ());
+    if (accZOK && !lr->IsDead()) {
+      lr->SetExtInward(&probeInw); // set extrapolation errors
       probeInw.SetInnerChecked(lr->GetActiveID());
       cl = lr->GetMCCluster();
       if (cl->IsValid()) {
@@ -868,40 +884,33 @@ Bool_t KMCDetector::SolveSingleTrackAnalytically()
 	if (!UpdateTrack(&probeInw, lr, cl)) break;
       }
     }
-    if (!probeInw.CorrectForMeanMaterial(lr,kTRUE)) return kFALSE;
-    innerReached = ilr;
-    printf("ProbeInw@%d: ",ilr); probeInw.Print("t");
-    
+    if (accZOK && !probeInw.CorrectForMeanMaterial(lr,kTRUE)) return kFALSE;
+    innerReached = ilr;    
+    printf("ProbeInw@%d: ",ilr); probeInw.Print("t");    
   }
+  
   // do outward propagation
   KMCProbe probeOut = probeInw;
   probeOut.ResetTrackingInfo();
   int outerReached = -1;
   for (int ilr=innerReached;ilr<fNLayers;ilr++) {
     KMCLayer *lr = GetLayer(ilr);
-    
-    if (!lr->IsDead()) {
-      cl = lr->GetMCCluster();      
-      if (!probeOut.PropagateToCluster(cl,fBFieldG)) break; // track was not propagated to cluster frame
-      if (TMath::Abs(probeOut.GetSnp())>GetMaxSnp()) break; // too large snp	
+    if (!probeOut.PropagateToR(lr->GetRadius(), fBFieldG, kOutward)) break;
+    if (TMath::Abs(probeOut.GetSnp())>GetMaxSnp()) break; // too large snp
+    Bool_t accZOK = lr->InZAcceptane(probeOut.GetZ());
+    if (accZOK && !lr->IsDead()) {
       lr->SetExtOutward(&probeOut); // set extrapolation errors
       probeOut.SetOuterChecked(lr->GetActiveID());
-      if (!cl->IsKilled()) { // update on this layer
+      cl = lr->GetMCCluster();
+      if (cl->IsValid()) {
+	if (!probeOut.PropagateToCluster(cl,fBFieldG)) return kFALSE; // track was not propagated to cluster frame
 	if (!UpdateTrack(&probeOut, lr, cl)) break;
       }
-    }					
-    else { // consider as passive layer
-      if (!probeOut.PropagateToR(lr->GetRadius(), fBFieldG)) break; 
-      lr->SetExtOutward(&probeOut);
-    }    
-    if (!probeOut.CorrectForMeanMaterial(lr,kFALSE)) return kFALSE;
-    outerReached = ilr;
+    }
+    if (accZOK && !probeOut.CorrectForMeanMaterial(lr,kFALSE)) return kFALSE;   
+    outerReached = ilr;    
     printf("ProbeOut@%d: ",ilr); probeOut.Print("t");
-    
-    
   }
-  
-  
 }
 
 Bool_t KMCDetector::ExtrapolateToR(KMCProbe* probe, double r) const
