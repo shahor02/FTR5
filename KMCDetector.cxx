@@ -392,18 +392,60 @@ KMCLayer::KMCLayer(char *name) :
 }
 
 //__________________________________________________________________________
+void KMCLayer::CalcExtComb()
+{
+  // calculate combined extrapolation spot
+  if (fExtInward[kSigY2]<0) { // inward is not defined
+    if (fExtOutward[kSigY2]>0) {
+      for (int i=kNPointParam;i--;) fExtComb[i] = fExtOutward[i];
+    }
+    else {
+      for (int i=kNPointParam;i--;) fExtComb[i] = -1; // not defined
+    }
+  }
+  else {
+    if (fExtOutward[kSigY2]>0) { // both are defined, combine them
+      double detInw = 1./(fExtInward[kSigY2]*fExtInward[kSigZ2] - fExtInward[kSigZY]*fExtInward[kSigZY]);
+      double wyyInw = fExtInward[kSigZ2]*detInw, wzzInw = fExtInward[kSigY2]*detInw, wzyInw = -fExtInward[kSigZY]*detInw;
+      double detOut = 1./(fExtOutward[kSigY2]*fExtOutward[kSigZ2] - fExtOutward[kSigZY]*fExtOutward[kSigZY]);
+      double wyyOut = fExtOutward[kSigZ2]*detOut, wzzOut = fExtOutward[kSigY2]*detOut, wzyOut = -fExtOutward[kSigZY]*detOut;
+
+      double wyyCmb = wyyInw + wyyOut, wzzCmb = wzzInw + wzzOut, wzyCmb = wzyInw + wzyOut;
+      double detCmb = 1./(wyyCmb*wzzCmb - wzyCmb*wzyCmb);
+
+      double wy = fExtInward[kPosY]*wyyInw+fExtInward[kPosZ]*wzyInw + fExtOutward[kPosY]*wyyOut+fExtOutward[kPosZ]*wzyOut;
+      double wz = fExtInward[kPosZ]*wzyInw+fExtInward[kPosZ]*wzzInw + fExtOutward[kPosY]*wzyOut+fExtOutward[kPosZ]*wzzOut;
+
+      fExtComb[kSigY2] = wzzCmb*detCmb;
+      fExtComb[kSigZ2] = wyyCmb*detCmb;
+      fExtComb[kSigZY] = -wzyCmb*detCmb;
+      
+      fExtComb[kPosY] = fExtComb[kSigY2]*wy + fExtComb[kSigZY]*wz;
+      fExtComb[kPosZ] = fExtComb[kSigZ2]*wz + fExtComb[kSigZY]*wy;
+    }
+    else { 
+      for (int i=kNPointParam;i--;) fExtComb[i] = fExtInward[i];
+    }
+  }
+}
+
+//__________________________________________________________________________
 void KMCLayer::Print(Option_t *opt) const
 {
   TString opts = opt; opts.ToLower();
-  printf("Lr%3d(A%3d) %10s R=%5.1f Zmx=%5.1f X2X0=%.3f XRho=%.3f SigY=%+.5f SigZ=%+.5f Eff:%+4.2f ",
+  printf("Lr%3d(A%3d) %10s R=%5.1f Zmx=%5.1f X2X0=%.3f XRho=%.3f SigY=%+.5f SigZ=%+.5f Eff:%+4.2f\n",
 	 GetUniqueID(),fActiveID,GetName(), fR,fZMax, fx2X0,fXRho,fPhiRes,fZRes,fEff);
   if (opts.Contains("t")) { // print tracking info
-    printf("ExtInw: %+6.4f %+6.4f ExtOut: %+6.4f %+6.4f ",fExtInward[0],fExtInward[1],fExtOutward[0],fExtOutward[1]);
+    printf("ExtInw: Y: %+.3e Z: %+.3e | %+.4e %+.4e %+.4e\n", fExtInward[kPosY],fExtInward[kPosZ],
+	   fExtInward[kSigY2],fExtInward[kSigZY],fExtInward[kSigZ2]);
+    printf("ExtOut: Y: %+.3e Z: %+.3e | %+.4e %+.4e %+.4e\n", fExtOutward[kPosY],fExtOutward[kPosZ],
+	   fExtOutward[kSigY2],fExtOutward[kSigZY],fExtOutward[kSigZ2]);
+    printf("ExtCmb: Y: %+.3e Z: %+.3e | %+.4e %+.4e %+.4e\n", fExtComb[kPosY],fExtComb[kPosZ],
+	   fExtComb[kSigY2],fExtComb[kSigZY],fExtComb[kSigZ2]);
   }
   if (opts.Contains("c")) {
     printf("Cluster: Id: %+3d: %+7.4f:%+7.4f",fClMC.GetID(), fClMC.GetY(),fClMC.GetZ());
   }
-  printf("\n");
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -876,12 +918,15 @@ Bool_t KMCDetector::SolveSingleTrackAnalytically()
     if (TMath::Abs(probeInw.GetSnp())>GetMaxSnp()) break; // too large snp
     Bool_t accZOK = lr->InZAcceptane(probeInw.GetZ());
     if (accZOK && !lr->IsDead()) {
-      lr->SetExtInward(&probeInw); // set extrapolation errors
       probeInw.SetInnerChecked(lr->GetActiveID());
       cl = lr->GetMCCluster();
       if (cl->IsValid()) {
 	if (!probeInw.PropagateToCluster(cl,fBFieldG)) return kFALSE; // track was not propagated to cluster frame
+	lr->SetExtInward(&probeInw); // set extrapolation errors
 	if (!UpdateTrack(&probeInw, lr, cl)) break;
+      }
+      else {
+	lr->SetExtInward(&probeInw); // set extrapolation errors
       }
     }
     if (accZOK && !probeInw.CorrectForMeanMaterial(lr,kTRUE)) return kFALSE;
@@ -899,18 +944,29 @@ Bool_t KMCDetector::SolveSingleTrackAnalytically()
     if (TMath::Abs(probeOut.GetSnp())>GetMaxSnp()) break; // too large snp
     Bool_t accZOK = lr->InZAcceptane(probeOut.GetZ());
     if (accZOK && !lr->IsDead()) {
-      lr->SetExtOutward(&probeOut); // set extrapolation errors
       probeOut.SetOuterChecked(lr->GetActiveID());
       cl = lr->GetMCCluster();
       if (cl->IsValid()) {
 	if (!probeOut.PropagateToCluster(cl,fBFieldG)) return kFALSE; // track was not propagated to cluster frame
+	lr->SetExtOutward(&probeOut); // set extrapolation errors
 	if (!UpdateTrack(&probeOut, lr, cl)) break;
+      }
+      else {
+	lr->SetExtOutward(&probeOut); // set extrapolation errors
       }
     }
     if (accZOK && !probeOut.CorrectForMeanMaterial(lr,kFALSE)) return kFALSE;   
     outerReached = ilr;    
     printf("ProbeOut@%d: ",ilr); probeOut.Print("t");
   }
+  //
+  // calculate combined estimates
+  for (int ilr=fNLayers;ilr--;) {
+    KMCLayer *lr = GetLayer(ilr);
+    if (lr->IsDead()) continue;
+    lr->CalcExtComb();
+  }
+  
 }
 
 Bool_t KMCDetector::ExtrapolateToR(KMCProbe* probe, double r) const

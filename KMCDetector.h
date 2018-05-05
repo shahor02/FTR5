@@ -172,6 +172,7 @@ inline Bool_t KMCProbe::PropagateToCluster(KMCCluster* cl, double b)
 class KMCLayer : public TNamed {
 public:
   enum {kBitVertex=BIT(15)};
+  enum {kPosY,kPosZ,kSigY2,kSigZY,kSigZ2,kNPointParam};
   KMCLayer(char *name);
   Float_t GetRadius()     const {return fR;}
   Float_t GetZMax()       const {return fZMax;}  
@@ -194,20 +195,31 @@ public:
   //
   void Reset() {
     if (IsActive()) {fClMC.Reset();}
-    fExtInward[0] = fExtOutward[0] = fExtInward[1] = fExtOutward[1] = -1.;
+    for (int i=kNPointParam;i--;) {
+      fExtInward[i] = fExtOutward[i] = fExtComb[i] = -1.;
+    }
   }
   //
   void SetExtInward(const KMCProbe* probe) {
-    fExtInward[0] = probe->GetSigmaY2();
-    fExtInward[1] = probe->GetSigmaZ2();
+    fExtInward[kPosY]  = probe->GetY();
+    fExtInward[kPosZ]  = probe->GetZ();
+    fExtInward[kSigY2] = probe->GetSigmaY2();
+    fExtInward[kSigZY] = probe->GetSigmaZY();
+    fExtInward[kSigZ2] = probe->GetSigmaZ2();
   }
+
   void SetExtOutward(const KMCProbe* probe) {
-    fExtOutward[0] = probe->GetSigmaY2();
-    fExtOutward[1] = probe->GetSigmaZ2();
+    fExtOutward[kPosY]  = probe->GetY();
+    fExtOutward[kPosZ]  = probe->GetZ();
+    fExtOutward[kSigY2] = probe->GetSigmaY2();
+    fExtOutward[kSigZY] = probe->GetSigmaZY();
+    fExtOutward[kSigZ2] = probe->GetSigmaZ2();
   }
   //
   Float_t* GetExtInward() const {return (Float_t*)&fExtInward[0];}
   Float_t* GetExtOutward() const {return (Float_t*)&fExtOutward[0];}
+  Float_t* GetExtComb()    const {return (Float_t*)&fExtComb[0];}
+  void CalcExtComb();
   //
   Float_t fR;
   Float_t fZMax;
@@ -216,8 +228,9 @@ public:
   Float_t fPhiRes; 
   Float_t fZRes;   
   Float_t fEff;
-  Float_t fExtInward[2]; // estimate from inward propagation
-  Float_t fExtOutward[2]; // estimate from outward propagation  
+  Float_t fExtInward[5]; // estimate from inward propagation
+  Float_t fExtOutward[5]; // estimate from outward propagation
+  Float_t fExtComb[5];    // combined estimate
   Bool_t  fIsDead;
   Int_t   fActiveID;   // active layer id
   //
