@@ -21,6 +21,39 @@ class TGraph;
 class TArrayI;
 
 //////////////////////////////////////////////////////////////////////////////////////////////
+
+//--------------------------------------------------------------------------------------------
+class KMCCluster : public TObject {
+ public:
+  //
+  enum {kBitKilled=BIT(14), kDummy = -999};
+  KMCCluster(Double_t y=0, Double_t z=0, Double_t x=0, Double_t phi=0, Int_t id=-1) : fY(y),fZ(z),fX(x),fPhi(phi),fID(id) {}
+  KMCCluster(KMCCluster &src);
+  KMCCluster& operator=(const KMCCluster& src);
+  virtual ~KMCCluster() {}
+  void Reset() { SetID(kDummy); TObject::Clear();}
+  //
+  Double_t GetY()    const   {return fY;}
+  Double_t GetX()    const   {return fX;}
+  Double_t GetZ()    const   {return fZ;}
+  Double_t GetPhi()  const   {return fPhi;}
+  Int_t    GetID()   const   {return fID;}
+  void     SetID(int id)     {fID = id;}
+  //
+  void    Kill(Bool_t v=kTRUE)          {SetBit(kBitKilled,v);}
+  Bool_t  IsKilled()              const {return TestBit(kBitKilled);}
+  Bool_t  IsValid()               const {return fID!=kDummy && !IsKilled();}
+  Double_t fY; 
+  Double_t fZ; 
+  Double_t fX;
+  Double_t fPhi;
+  Int_t   fID;
+  void Set(Double_t y, Double_t z, Double_t x, Double_t phi, int id) {fY=y; fZ=z; fX=x; fPhi=phi; ResetBit(kBitKilled); fID = id;}
+  virtual void Print(Option_t * = 0) const;
+  ClassDef(KMCCluster,1);
+};
+
+
 //--------------------------------------------------------------------------------------------
 class KMCProbe : public AliExternalTrackParam {
  public:
@@ -43,13 +76,13 @@ class KMCProbe : public AliExternalTrackParam {
   //
   Bool_t    CorrectForMeanMaterial(const KMCLayer* lr, Bool_t inward=kTRUE);
   Bool_t    GetXatLabR(Double_t r,Double_t &x, Double_t bz, Int_t dir=0) const;
-  Bool_t    PropagateToR(double r, double b, int dir=0);
+  Bool_t    PropagateToR(Double_t r, Double_t b, int dir=0);
   //
-  void      SetMass(double m=0.14)                      {fMass = m;}
+  void      SetMass(Double_t m=0.14)                      {fMass = m;}
   Double_t  GetMass()                             const {return fMass;}
   Double_t  GetChi2()                             const {return fChi2;}
-  void      SetChi2(double chi2)                        {fChi2 = chi2;}
-  void      AddChi2(double chi2)                        {fChi2 += chi2;}
+  void      SetChi2(Double_t chi2)                        {fChi2 = chi2;}
+  void      AddChi2(Double_t chi2)                        {fChi2 += chi2;}
   void      SetInnerChecked(int n)                      {fInnerChecked = n;}
   void      SetOuterChecked(int n)                      {fOuterChecked = n;}
   int       GetInnerChecked()                     const {return fInnerChecked;}
@@ -59,7 +92,7 @@ class KMCProbe : public AliExternalTrackParam {
   UInt_t&   GetHitsPatt()                               {return fHits;}
   UInt_t&   GetFakesPatt()                              {return fFakes;}
   Double_t  GetNormChi2(Bool_t penalize=kFALSE)   const;
-  void      AddHit(Int_t lr, double chi2, int clID=-1);
+  void      AddHit(Int_t lr, Double_t chi2, int clID=-1);
   void      ResetHit(Int_t lr);
   Bool_t    IsHit(Int_t lr)                       const {return (lr<fgNLayers) ? IsWBit(fHits,lr)  : kFALSE;}
   Bool_t    IsHitFake(Int_t lr)                   const {return (lr<fgNLayers) ? IsWBit(fFakes,lr) : kFALSE;}
@@ -72,12 +105,12 @@ class KMCProbe : public AliExternalTrackParam {
   static int    GetNLayers()                                   {return fgNLayers;}
   //
   static Double_t GetMissingHitPenalty()                        {return fgMissingHitPenalty;}
-  static void     SetMissingHitPenalty(double p=2.)             {fgMissingHitPenalty = p;}
+  static void     SetMissingHitPenalty(Double_t p=2.)             {fgMissingHitPenalty = p;}
   //
  public:
   enum {kMaxITSLr=12};
-  Float_t fMass;   // mass
-  Float_t fChi2;   // total chi2
+  Double_t fMass;   // mass
+  Double_t fChi2;   // total chi2
   UInt_t  fHits;   // pattern on hits (max 32!)
   UInt_t  fFakes;  // pattern of fakes among hits
   Short_t fNHits;    // total hits
@@ -94,7 +127,7 @@ class KMCProbe : public AliExternalTrackParam {
 inline Double_t KMCProbe::GetNormChi2(Bool_t penalize) const
 {
   // normalized chi2, penilized for missing hits
-  double chi2 = fChi2;
+  Double_t chi2 = fChi2;
   if (penalize) {
     int nMiss = (fOuterChecked-fInnerChecked+1) - fNHits;
     chi2 = fChi2 + nMiss*fgMissingHitPenalty;
@@ -103,7 +136,7 @@ inline Double_t KMCProbe::GetNormChi2(Bool_t penalize) const
 }
 
 //_______________________________________
-inline void KMCProbe::AddHit(Int_t lr, double chi2, Int_t clID) {
+inline void KMCProbe::AddHit(Int_t lr, Double_t chi2, Int_t clID) {
   // note: lr is active layer ID
   if (lr<0) return;
   fNHits++;
@@ -123,39 +156,9 @@ inline void KMCProbe::ResetHit(Int_t lr) {
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
-//--------------------------------------------------------------------------------------------
-class KMCCluster : public TObject {
- public:
-  //
-  enum {kBitKilled=BIT(14), kDummy = -999};
-  KMCCluster(Float_t y=0, Float_t z=0, Float_t x=0, Float_t phi=0, Int_t id=-1) : fY(y),fZ(z),fX(x),fPhi(phi),fID(id) {}
-  KMCCluster(KMCCluster &src);
-  KMCCluster& operator=(const KMCCluster& src);
-  virtual ~KMCCluster() {}
-  void Reset() { SetID(kDummy); TObject::Clear();}
-  //
-  Double_t GetY()    const   {return fY;}
-  Double_t GetX()    const   {return fX;}
-  Double_t GetZ()    const   {return fZ;}
-  Double_t GetPhi()  const   {return fPhi;}
-  Int_t    GetID()   const   {return fID;}
-  void     SetID(int id)     {fID = id;}
-  //
-  void    Kill(Bool_t v=kTRUE)          {SetBit(kBitKilled,v);}
-  Bool_t  IsKilled()              const {return TestBit(kBitKilled);}
-  Bool_t  IsValid()               const {return fID!=kDummy && !IsKilled();}
-  Float_t fY; 
-  Float_t fZ; 
-  Float_t fX;
-  Float_t fPhi;
-  Int_t   fID;
-  void Set(Float_t y, Float_t z, Float_t x, Float_t phi, int id) {fY=y; fZ=z; fX=x; fPhi=phi; ResetBit(kBitKilled); fID = id;}
-  virtual void Print(Option_t * = 0) const;
-  ClassDef(KMCCluster,1);
-};
 
 //____________________________________________________________________________
-inline Bool_t KMCProbe::PropagateToCluster(KMCCluster* cl, double b)
+inline Bool_t KMCProbe::PropagateToCluster(KMCCluster* cl, Double_t b)
 {
   // propagate track to cluster frame
   if ( (TMath::Abs(cl->GetPhi() - GetAlpha())>1e-4 &&  !Rotate(cl->GetPhi())) ||
@@ -173,14 +176,15 @@ class KMCLayer : public TNamed {
 public:
   enum {kBitVertex=BIT(15)};
   enum {kPosY,kPosZ,kSigY2,kSigZY,kSigZ2,kNPointParam};
+  enum {kDiagErr0,kDiagErr1,kDiagTheta};
   KMCLayer(char *name);
-  Float_t GetRadius()     const {return fR;}
-  Float_t GetZMax()       const {return fZMax;}  
-  Float_t GetRadL()       const {return fx2X0;}
-  Float_t GetXTimesRho()  const {return fXRho;}
-  Float_t GetPhiRes()     const {return fPhiRes;}
-  Float_t GetZRes()       const {return fZRes;}
-  Float_t GetLayerEff()   const {return fEff;}
+  Double_t GetRadius()     const {return fR;}
+  Double_t GetZMax()       const {return fZMax;}  
+  Double_t GetRadL()       const {return fx2X0;}
+  Double_t GetXTimesRho()  const {return fXRho;}
+  Double_t GetPhiRes()     const {return fPhiRes;}
+  Double_t GetZRes()       const {return fZRes;}
+  Double_t GetLayerEff()   const {return fEff;}
   Int_t   GetActiveID()   const {return fActiveID;}
   void    SetActiveID(int id) {fActiveID = id;}
   virtual void  Print(Option_t* option = "") const;
@@ -189,7 +193,7 @@ public:
   Bool_t IsDead()       const {return fIsDead;}
   Bool_t IsVertex()     const {return TestBit(kBitVertex);}
   //
-  Bool_t InZAcceptane(float z) const {return TMath::Abs(z)<fZMax;}
+  Bool_t InZAcceptane(Double_t z) const {return TMath::Abs(z)<fZMax;}
 
   KMCCluster* GetMCCluster()        {return (KMCCluster*)&fClMC;}
   //
@@ -198,6 +202,7 @@ public:
     for (int i=kNPointParam;i--;) {
       fExtInward[i] = fExtOutward[i] = fExtComb[i] = -1.;
     }
+    fDiagErr[0]=fDiagErr[1]=fDiagErr[2] = -1.;
   }
   //
   void SetExtInward(const KMCProbe* probe) {
@@ -216,21 +221,23 @@ public:
     fExtOutward[kSigZ2] = probe->GetSigmaZ2();
   }
   //
-  Float_t* GetExtInward() const {return (Float_t*)&fExtInward[0];}
-  Float_t* GetExtOutward() const {return (Float_t*)&fExtOutward[0];}
-  Float_t* GetExtComb()    const {return (Float_t*)&fExtComb[0];}
+  Double_t* GetExtInward() const {return (Double_t*)&fExtInward[0];}
+  Double_t* GetExtOutward() const {return (Double_t*)&fExtOutward[0];}
+  Double_t* GetExtComb()    const {return (Double_t*)&fExtComb[0];}
+  static void Diagonalize2x2Matrix(Double_t sigAA, Double_t sigBA, Double_t sigBB, Double_t &sig11, Double_t &sig22, Double_t &theta);
   void CalcExtComb();
   //
-  Float_t fR;
-  Float_t fZMax;
-  Float_t fx2X0;
-  Float_t fXRho;    // x*density
-  Float_t fPhiRes; 
-  Float_t fZRes;   
-  Float_t fEff;
-  Float_t fExtInward[5]; // estimate from inward propagation
-  Float_t fExtOutward[5]; // estimate from outward propagation
-  Float_t fExtComb[5];    // combined estimate
+  Double_t fR;
+  Double_t fZMax;
+  Double_t fx2X0;
+  Double_t fXRho;    // x*density
+  Double_t fPhiRes; 
+  Double_t fZRes;   
+  Double_t fEff;
+  Double_t fExtInward[5]; // estimate from inward propagation
+  Double_t fExtOutward[5]; // estimate from outward propagation
+  Double_t fExtComb[5];    // combined estimate
+  Double_t fDiagErr[3];    // diagonalized errors
   Bool_t  fIsDead;
   Int_t   fActiveID;   // active layer id
   //
@@ -250,20 +257,20 @@ class KMCDetector : public TNamed {
   KMCDetector(char *name,char *title);
   virtual ~KMCDetector();
 
-  void AddLayer(char *name, Float_t radius, Float_t zmax, Float_t radL, Float_t xrho=0., Float_t phiRes=-1, Float_t zRes=-1, Float_t eff=-1);
+  void AddLayer(char *name, Double_t radius, Double_t zmax, Double_t radL, Double_t xrho=0., Double_t phiRes=-1, Double_t zRes=-1, Double_t eff=-1);
   Int_t GetLayerID(Int_t actID) const;
 
   virtual  void Print(const Option_t* opt) const; 
   //  void PlotLayout(Int_t plotDead = kTRUE);
   
-  void SetBField(Float_t bfield) {fBFieldG = bfield*10; }
-  Float_t GetBField() const {return fBFieldG/10; }
+  void SetBField(Double_t bfield) {fBFieldG = bfield*10; }
+  Double_t GetBField() const {return fBFieldG/10; }
 
-  void SetIntegrationTime(Float_t integrationTime) {fIntegrationTime = integrationTime; }
-  Float_t GetIntegrationTime() const { return fIntegrationTime; }
+  void SetIntegrationTime(Double_t integrationTime) {fIntegrationTime = integrationTime; }
+  Double_t GetIntegrationTime() const { return fIntegrationTime; }
 
   void SetdNdEtaCent(Int_t dNdEtaCent ) {fdNdEtaCent = dNdEtaCent; }
-  Float_t GetdNdEtaCent() const { return fdNdEtaCent; }
+  Double_t GetdNdEtaCent() const { return fdNdEtaCent; }
 
   Int_t GetNLayers()          const {return fLayers.GetEntries(); }
   Int_t GetNActiveLayers()    const {return fNActiveLayers; }
@@ -278,19 +285,19 @@ class KMCDetector : public TNamed {
   Double_t ThetaMCS                 ( Double_t mass, Double_t RadLength, Double_t momentum ) const;
   Double_t ProbGoodHit              ( Double_t radius, Double_t searchRadiusRPhi, Double_t searchRadiusZ ); 
   Double_t ProbGoodChiSqHit         ( Double_t radius, Double_t searchRadiusRPhi, Double_t searchRadiusZ ); 
-  Double_t ProbGoodChiSqPlusConfHit ( Double_t radius, Double_t leff, Double_t searchRadiusRPhi, Double_t searchRadiusZ, double confL); 
-  Double_t ProbNullChiSqPlusConfHit ( Double_t radius, Double_t leff, Double_t searchRadiusRPhi, Double_t searchRadiusZ, double confL); 
+  Double_t ProbGoodChiSqPlusConfHit ( Double_t radius, Double_t leff, Double_t searchRadiusRPhi, Double_t searchRadiusZ, Double_t confL); 
+  Double_t ProbNullChiSqPlusConfHit ( Double_t radius, Double_t leff, Double_t searchRadiusRPhi, Double_t searchRadiusZ, Double_t confL); 
 
   // Howard W. hit distribution and convolution integral
   Double_t HitDensity        ( Double_t radius )   ;
   Double_t UpcHitDensity     ( Double_t radius )   ;
   Double_t OneEventHitDensity    ( Double_t multiplicity, Double_t radius ) const   ;
-  void     CalcDensFactorEta(double eta);
+  void     CalcDensFactorEta(Double_t eta);
   
-  void   ApplyMS(KMCProbe* trc,  double x2x0) const;
+  void   ApplyMS(KMCProbe* trc,  Double_t x2x0) const;
 
   // method to extend AliExternalTrackParam functionality
-  Bool_t    IsZero(double val, double tol=1e-9) const {return TMath::Abs(val)<tol;}
+  Bool_t    IsZero(Double_t val, Double_t tol=1e-9) const {return TMath::Abs(val)<tol;}
   TList*    GetLayers()                   const {return (TList*)&fLayers;}
   KMCLayer* GetLayer(Int_t i)          const {return (KMCLayer*) fLayers.At(i);}
   KMCLayer* GetActiveLayer(Int_t actID)    const {int pid=GetLayerID(actID); return pid<0 ? 0:GetLayer(pid);}
@@ -298,23 +305,25 @@ class KMCDetector : public TNamed {
   KMCProbe* GetProbeTrack()       const {return (KMCProbe*)&fProbeInMC0;}
   void      ClassifyLayers();
   void      Reset() { for (int i=fNLayers;i--;) GetLayer(i)->Reset(); }                  
-  void      SetMaxSnp(double v) { fMaxSnp = v; }
+  void      SetMaxSnp(Double_t v) { fMaxSnp = v; }
   Double_t  GetMaxSnp() const { return fMaxSnp; }
-  void      SetMaxChi2Cl(double cut)  {fMaxChi2Cl = cut>0 ? cut:9;}
+  void      SetMaxChi2Cl(Double_t cut)  {fMaxChi2Cl = cut>0 ? cut:9;}
   void      SetMinHits(Int_t n=4)     {fMinHits = n;}
-  void      SetMaxNormChi2NDF(double cut=5.) {fMaxNormChi2NDF = cut>0 ? cut:9;}
+  void      SetMaxNormChi2NDF(Double_t cut=5.) {fMaxNormChi2NDF = cut>0 ? cut:9;}
 
   Double_t GetMaxChi2Cl()                   const {return fMaxChi2Cl;}
   Double_t GetMaxNormChi2NDF()              const {return fMaxNormChi2NDF;}
   Int_t    GetMinHits()                     const {return fMinHits;}
 
   
-  KMCProbe* PrepareKalmanTrack(double pt, double eta, double mass, int charge, double phi=0,double x=0,double y=0,double z=0);
+  KMCProbe* PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi=0,Double_t x=0,Double_t y=0,Double_t z=0);
   int TransportKalmanTrackWithMS(KMCProbe *probTr, Bool_t applyMatCorr=kTRUE);
   Bool_t PropagateToLayer(KMCProbe* trc, const KMCLayer* lr, int dir) const;
-  Bool_t ExtrapolateToR(KMCProbe* probe, double r) const;
+  Bool_t ExtrapolateToR(KMCProbe* probe, Double_t r) const;
   Bool_t UpdateTrack(KMCProbe* trc, KMCLayer* lr, KMCCluster* cl) const;
+  Double_t  Chi2ToCluster(const KMCLayer* lr, const KMCProbe* trc, const KMCCluster* cl) const;
 
+  
   Bool_t SolveSingleTrackAnalytically();
   
   /*  
@@ -347,9 +356,9 @@ class KMCDetector : public TNamed {
   TH2F*    GetHMCLrChi2()                      const {return fHMCLrChi2;}
   //
   void     PrintITS(Option_t* opt="") const {for (int i=0;i<=fLastActiveITSLayer;i++) if (!GetLayer(i)->IsDead()) GetLayer(i)->Print(opt);}
-  static void SetVtxConstraint(double d=-1, double z=-1) {fgVtxConstraint[0]=d; fgVtxConstraint[1]=z;}
+  static void SetVtxConstraint(Double_t d=-1, Double_t z=-1) {fgVtxConstraint[0]=d; fgVtxConstraint[1]=z;}
   //
-  void CalcHardSearchLimits(double dzv);
+  void CalcHardSearchLimits(Double_t dzv);
   void SetMaxSeedToPropagate(Int_t n=300) {fMaxSeedToPropagate = n;}
   */
  protected:
@@ -361,8 +370,8 @@ class KMCDetector : public TNamed {
   Int_t fFirstActiveLayerTracked;    // id of first active layer really used for tracking of given pt
   Int_t fLastActiveLayerTracked;    // id of last active layer really used for tracking of given pt
   TList fLayers;                // List of layer pointers
-  Float_t fBFieldG;             // Magnetic Field in Gauss (set in Tesla)
-  Float_t fIntegrationTime;     // electronics integration time
+  Double_t fBFieldG;             // Magnetic Field in Gauss (set in Tesla)
+  Double_t fIntegrationTime;     // electronics integration time
 
   Int_t fdNdEtaCent;       // Multiplicity
   Double_t fDensFactorEta;                             // density scaling for non-0 eta

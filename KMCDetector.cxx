@@ -1,5 +1,5 @@
 //Bool_t KMCDetector::SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, Double_t phi,
-//KMCProbe* KMCDetector::PrepareKalmanTrack(double pt, double lambda, double mass, int charge, double phi, double x,double y, double z)
+//KMCProbe* KMCDetector::PrepareKalmanTrack(Double_t pt, Double_t lambda, Double_t mass, int charge, Double_t phi, Double_t x,Double_t y, Double_t z)
 
 #include "KMCDetector.h"
 #include <TMath.h>
@@ -125,11 +125,11 @@ void KMCProbe::ResetTrackingInfo()
 void KMCProbe::ResetCovMat()
 {
   // reset errors
-  double *trCov  = (double*)GetCovariance();
-  double *trPars = (double*)GetParameter();
-  const double kLargeErr2Coord = 50*50;
-  const double kLargeErr2Dir = 0.6*0.6;
-  const double kLargeErr2PtI = 0.5*0.5;
+  Double_t *trCov  = (Double_t*)GetCovariance();
+  Double_t *trPars = (Double_t*)GetParameter();
+  const Double_t kLargeErr2Coord = 50*50;
+  const Double_t kLargeErr2Dir = 0.6*0.6;
+  const Double_t kLargeErr2PtI = 0.5*0.5;
   for (int ic=15;ic--;) trCov[ic] = 0.;
   trCov[kY2]   = trCov[kZ2]   = kLargeErr2Coord; 
   trCov[kSnp2] = trCov[kTgl2] = kLargeErr2Dir;
@@ -165,14 +165,14 @@ Bool_t KMCProbe::GetXatLabR(Double_t r,Double_t &x, Double_t bz, Int_t dir) cons
   // special case of R=0
   if (r<kAlmost0) {x=0; return kTRUE;}
 
-  const double* pars = GetParameter();
+  const Double_t* pars = GetParameter();
   const Double_t &fy=pars[0], &sn = pars[2];
   //
-  double fx = GetX();
-  double crv = GetC(bz);
+  Double_t fx = GetX();
+  Double_t crv = GetC(bz);
   if (TMath::Abs(crv)<=kAlmost0) { // this is a straight track
     if (TMath::Abs(sn)>=kAlmost1) { // || to Y axis
-      double det = (r-fx)*(r+fx);
+      Double_t det = (r-fx)*(r+fx);
       if (det<0) return kFALSE;     // does not reach raduis r
       x = fx;
       if (dir==0) return kTRUE;
@@ -187,7 +187,7 @@ Bool_t KMCProbe::GetXatLabR(Double_t r,Double_t &x, Double_t bz, Int_t dir) cons
       }
     }
     else if (TMath::Abs(sn)<=kAlmost0) { // || to X axis
-      double det = (r-fy)*(r+fy);
+      Double_t det = (r-fy)*(r+fy);
       if (det<0) return kFALSE;     // does not reach raduis r
       det = TMath::Sqrt(det);
       if (!dir) {
@@ -206,13 +206,13 @@ Bool_t KMCProbe::GetXatLabR(Double_t r,Double_t &x, Double_t bz, Int_t dir) cons
       }
     }
     else {                                 // general case of straight line
-      double cs = TMath::Sqrt((1-sn)*(1+sn));
-      double xsyc = fx*sn-fy*cs;
-      double det = (r-xsyc)*(r+xsyc);
+      Double_t cs = TMath::Sqrt((1-sn)*(1+sn));
+      Double_t xsyc = fx*sn-fy*cs;
+      Double_t det = (r-xsyc)*(r+xsyc);
       if (det<0) return kFALSE;    // does not reach raduis r
       det = TMath::Sqrt(det);
-      double xcys = fx*cs+fy*sn;
-      double t = -xcys;
+      Double_t xcys = fx*cs+fy*sn;
+      Double_t t = -xcys;
       if (dir==0) t += t>0 ? -det:det;  // chose the solution requiring the smalest step
       else if (dir>0) {                 // go in increasing fX direction. ( t+-det > 0)
 	if (t>=-det) t += -det;         // take minimal step giving t>0
@@ -227,11 +227,11 @@ Bool_t KMCProbe::GetXatLabR(Double_t r,Double_t &x, Double_t bz, Int_t dir) cons
   }
   else {                                 // helix
     // get center of the track circle
-    double tR = 1./crv;   // track radius (for the moment signed)
-    double cs = TMath::Sqrt((1-sn)*(1+sn));
-    double x0 = fx - sn*tR;
-    double y0 = fy + cs*tR;
-    double r0 = TMath::Sqrt(x0*x0+y0*y0);
+    Double_t tR = 1./crv;   // track radius (for the moment signed)
+    Double_t cs = TMath::Sqrt((1-sn)*(1+sn));
+    Double_t x0 = fx - sn*tR;
+    Double_t y0 = fy + cs*tR;
+    Double_t r0 = TMath::Sqrt(x0*x0+y0*y0);
     //    printf("Xc:%+e Yc:%+e\n",x0,y0);
     //
     if (r0<=kAlmost0) {
@@ -239,9 +239,9 @@ Bool_t KMCProbe::GetXatLabR(Double_t r,Double_t &x, Double_t bz, Int_t dir) cons
       return kFALSE;
     }            // the track is concentric to circle
     tR = TMath::Abs(tR);
-    double tR2r0 = tR/r0;
-    double g = 0.5*(r*r/(r0*tR) - tR2r0 - 1./tR2r0);
-    double det = (1.-g)*(1.+g);
+    Double_t tR2r0 = tR/r0;
+    Double_t g = 0.5*(r*r/(r0*tR) - tR2r0 - 1./tR2r0);
+    Double_t det = (1.-g)*(1.+g);
     if (det<0) {
       AliDebug(2,Form("g=%f tR=%f r0=%f\n",g,tR, r0));
       return kFALSE;
@@ -252,14 +252,14 @@ Bool_t KMCProbe::GetXatLabR(Double_t r,Double_t &x, Double_t bz, Int_t dir) cons
     // with C=f*c0+-|s0|*det and S=f*s0-+c0 sign(s0)*det
     // where s0 and c0 make direction for the circle center (=x0/r0 and y0/r0)
     //
-    double tmp = 1.+g*tR2r0;
+    Double_t tmp = 1.+g*tR2r0;
     x = x0*tmp; 
-    double y = y0*tmp;
+    Double_t y = y0*tmp;
     if (TMath::Abs(y0)>kAlmost0) { // when y0==0 the x,y is unique
-      double dfx = tR2r0*TMath::Abs(y0)*det;
-      double dfy = tR2r0*x0*TMath::Sign(det,y0);
+      Double_t dfx = tR2r0*TMath::Abs(y0)*det;
+      Double_t dfy = tR2r0*x0*TMath::Sign(det,y0);
       if (dir==0) {                    // chose the one which corresponds to smallest step 
-	double delta = (x-fx)*dfx-(y-fy)*dfy; // the choice of + in C will lead to smaller step if delta<0
+	Double_t delta = (x-fx)*dfx-(y-fy)*dfy; // the choice of + in C will lead to smaller step if delta<0
 	if (delta<0) x += dfx;
 	else         x -= dfx;
       }
@@ -281,15 +281,15 @@ Bool_t KMCProbe::GetXatLabR(Double_t r,Double_t &x, Double_t bz, Int_t dir) cons
 }
 
 //____________________________________
-Bool_t KMCProbe::PropagateToR(double r, double b, int dir) 
+Bool_t KMCProbe::PropagateToR(Double_t r, Double_t b, int dir) 
 {
   // go to radius R
   //
-  double xR = 0;
-  double rr = r*r;
+  Double_t xR = 0;
+  Double_t rr = r*r;
   int iter = 0;
-  const double kTiny = 1e-4;
-  double rcurr2 = GetX()*GetX() + GetY()*GetY();
+  const Double_t kTiny = 1e-4;
+  Double_t rcurr2 = GetX()*GetX() + GetY()*GetY();
   if (TMath::Abs(rcurr2 - rr)<kTiny*kTiny) { // just rotate and return
     if (rr > kAlmost0 && !Rotate(PhiPos())) {
       if (AliLog::GetGlobalDebugLevel()>2) {
@@ -319,8 +319,8 @@ Bool_t KMCProbe::PropagateToR(double r, double b, int dir)
     if (TMath::Abs(rcurr2-rr)<kTiny || rr<kAlmost0) return kTRUE;
     //
     // two radii correspond to this X...
-    double pos[3]; GetXYZ(pos);
-    double phi = TMath::ATan2(pos[1],pos[0]);
+    Double_t pos[3]; GetXYZ(pos);
+    Double_t phi = TMath::ATan2(pos[1],pos[0]);
     if (!Rotate(phi)) {
       if (AliLog::GetGlobalDebugLevel()>2) {
 	printf("Failed to rotate to %f to propagate to R=%f\n",phi,r); 
@@ -405,16 +405,16 @@ void KMCLayer::CalcExtComb()
   }
   else {
     if (fExtOutward[kSigY2]>0) { // both are defined, combine them
-      double detInw = 1./(fExtInward[kSigY2]*fExtInward[kSigZ2] - fExtInward[kSigZY]*fExtInward[kSigZY]);
-      double wyyInw = fExtInward[kSigZ2]*detInw, wzzInw = fExtInward[kSigY2]*detInw, wzyInw = -fExtInward[kSigZY]*detInw;
-      double detOut = 1./(fExtOutward[kSigY2]*fExtOutward[kSigZ2] - fExtOutward[kSigZY]*fExtOutward[kSigZY]);
-      double wyyOut = fExtOutward[kSigZ2]*detOut, wzzOut = fExtOutward[kSigY2]*detOut, wzyOut = -fExtOutward[kSigZY]*detOut;
+      Double_t detInw = 1./(fExtInward[kSigY2]*fExtInward[kSigZ2] - fExtInward[kSigZY]*fExtInward[kSigZY]);
+      Double_t wyyInw = fExtInward[kSigZ2]*detInw, wzzInw = fExtInward[kSigY2]*detInw, wzyInw = -fExtInward[kSigZY]*detInw;
+      Double_t detOut = 1./(fExtOutward[kSigY2]*fExtOutward[kSigZ2] - fExtOutward[kSigZY]*fExtOutward[kSigZY]);
+      Double_t wyyOut = fExtOutward[kSigZ2]*detOut, wzzOut = fExtOutward[kSigY2]*detOut, wzyOut = -fExtOutward[kSigZY]*detOut;
 
-      double wyyCmb = wyyInw + wyyOut, wzzCmb = wzzInw + wzzOut, wzyCmb = wzyInw + wzyOut;
-      double detCmb = 1./(wyyCmb*wzzCmb - wzyCmb*wzyCmb);
+      Double_t wyyCmb = wyyInw + wyyOut, wzzCmb = wzzInw + wzzOut, wzyCmb = wzyInw + wzyOut;
+      Double_t detCmb = 1./(wyyCmb*wzzCmb - wzyCmb*wzyCmb);
 
-      double wy = fExtInward[kPosY]*wyyInw+fExtInward[kPosZ]*wzyInw + fExtOutward[kPosY]*wyyOut+fExtOutward[kPosZ]*wzyOut;
-      double wz = fExtInward[kPosZ]*wzyInw+fExtInward[kPosZ]*wzzInw + fExtOutward[kPosY]*wzyOut+fExtOutward[kPosZ]*wzzOut;
+      Double_t wy = fExtInward[kPosY]*wyyInw+fExtInward[kPosZ]*wzyInw + fExtOutward[kPosY]*wyyOut+fExtOutward[kPosZ]*wzyOut;
+      Double_t wz = fExtInward[kPosZ]*wzyInw+fExtInward[kPosZ]*wzzInw + fExtOutward[kPosY]*wzyOut+fExtOutward[kPosZ]*wzzOut;
 
       fExtComb[kSigY2] = wzzCmb*detCmb;
       fExtComb[kSigZ2] = wyyCmb*detCmb;
@@ -427,6 +427,8 @@ void KMCLayer::CalcExtComb()
       for (int i=kNPointParam;i--;) fExtComb[i] = fExtInward[i];
     }
   }
+  Diagonalize2x2Matrix(fExtComb[kSigY2],fExtComb[kSigZY],fExtComb[kSigZ2],
+		       fDiagErr[kDiagErr0],fDiagErr[kDiagErr1],fDiagErr[kDiagTheta]);
 }
 
 //__________________________________________________________________________
@@ -440,12 +442,42 @@ void KMCLayer::Print(Option_t *opt) const
 	   fExtInward[kSigY2],fExtInward[kSigZY],fExtInward[kSigZ2]);
     printf("ExtOut: Y: %+.3e Z: %+.3e | %+.4e %+.4e %+.4e\n", fExtOutward[kPosY],fExtOutward[kPosZ],
 	   fExtOutward[kSigY2],fExtOutward[kSigZY],fExtOutward[kSigZ2]);
-    printf("ExtCmb: Y: %+.3e Z: %+.3e | %+.4e %+.4e %+.4e\n", fExtComb[kPosY],fExtComb[kPosZ],
-	   fExtComb[kSigY2],fExtComb[kSigZY],fExtComb[kSigZ2]);
+    printf("ExtCmb: Y: %+.3e Z: %+.3e | %+.4e %+.4e %+.4e | Diag: %.3e %.3e %+.3e\n",
+	   fExtComb[kPosY],fExtComb[kPosZ],fExtComb[kSigY2],fExtComb[kSigZY],fExtComb[kSigZ2],
+	   fDiagErr[kDiagErr0],fDiagErr[kDiagErr1],fDiagErr[kDiagTheta] );
   }
   if (opts.Contains("c")) {
-    printf("Cluster: Id: %+3d: %+7.4f:%+7.4f",fClMC.GetID(), fClMC.GetY(),fClMC.GetZ());
+    printf("Cluster: Id: %+3d: %+7.4f:%+7.4f\n",fClMC.GetID(), fClMC.GetY(),fClMC.GetZ());
   }
+}
+
+//_________________________________________________________
+void KMCLayer::Diagonalize2x2Matrix(Double_t sigAA, Double_t sigBA, Double_t sigBB, Double_t &sig11, Double_t &sig22, Double_t &theta)
+{
+  // find diagonalied matrix and rotation which diagonalizes it
+  Double_t diff = (sigAA-sigBB);
+  if (TMath::Abs(diff)<1e-7) {
+    if (sigBA>0) theta = TMath::Pi()/4.;
+    else if (sigBA<0) theta = TMath::Pi()*3./4.;
+    else {
+      theta = 0.;
+      sig11 = TMath::Sqrt(sigAA);
+      sig22 = TMath::Sqrt(sigBB);
+      return;
+    }
+  }
+  theta = 0.5*TMath::ATan2(2.*sigBA, diff);
+  Double_t disc = diff*diff + 4*sigBA*sigBA;
+  if (disc<0) {
+    printf("Matrix not positive defined: %e %e %e\n",sigAA,sigBA,sigBB);
+    theta = 0.;
+    sig11 = TMath::Sqrt(sigAA);
+    sig22 = TMath::Sqrt(sigBB);
+    return;
+  }
+  disc = TMath::Sqrt(disc);
+  sig11 = TMath::Sqrt(0.5*(sigAA + sigBB + disc));
+  sig22 = TMath::Sqrt(0.5*(sigAA + sigBB - disc));
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -505,7 +537,7 @@ KMCDetector::~KMCDetector() { //
   //  delete fLayers;
 }
 
-void KMCDetector::AddLayer(char *name, Float_t radius, Float_t zmax, Float_t x2X0, Float_t xrho, Float_t phiRes, Float_t zRes, Float_t eff) {
+void KMCDetector::AddLayer(char *name, Double_t radius, Double_t zmax, Double_t x2X0, Double_t xrho, Double_t phiRes, Double_t zRes, Double_t eff) {
   //
   // Add additional layer to the list of layers (ordered by radius)
   // 
@@ -520,7 +552,7 @@ void KMCDetector::AddLayer(char *name, Float_t radius, Float_t zmax, Float_t x2X
     newLayer->fXRho  = xrho;
     newLayer->fPhiRes = phiRes;
     newLayer->fZRes = zRes;
-    eff = TMath::Min(1.f,eff);
+    eff = TMath::Min(1.,eff);
     newLayer->fEff = eff;
     newLayer->fActiveID = -2;
     TString lname = name;
@@ -639,7 +671,7 @@ Double_t KMCDetector::ProbGoodChiSqHit ( Double_t radius, Double_t searchRadiusR
 }
 
 Double_t KMCDetector::ProbGoodChiSqPlusConfHit ( Double_t radius, Double_t leff,
-						 Double_t searchRadiusRPhi, Double_t searchRadiusZ, double confLevel) 
+						 Double_t searchRadiusRPhi, Double_t searchRadiusZ, Double_t confLevel) 
 {
   // Based on work by Ruben Shahoyen 
   // This is the probability of getting a good hit using a Chi**2 search on a 2D Gaussian distribution function
@@ -653,7 +685,7 @@ Double_t KMCDetector::ProbGoodChiSqPlusConfHit ( Double_t radius, Double_t leff,
 }
 
 Double_t KMCDetector::ProbNullChiSqPlusConfHit ( Double_t radius, Double_t leff,
-						 Double_t searchRadiusRPhi, Double_t searchRadiusZ, double confLevel) 
+						 Double_t searchRadiusRPhi, Double_t searchRadiusZ, Double_t confLevel) 
 {
   // Based on work by Ruben Shahoyan 
   // This is the probability to not have any match to the track (see also :ProbGoodChiSqPlusConfHit:)
@@ -676,20 +708,20 @@ Double_t KMCDetector::HitDensity ( Double_t radius )
   //  Double_t MaxRadiusSlowDet = 0.1; //?   // Maximum radius for slow detectors.  Fast detectors 
   if (radius<0.01) return 0;
   //
-  double arealDensity  = OneEventHitDensity(fdNdEtaCent,radius)  + UpcHitDensity(radius) ;
+  Double_t arealDensity  = OneEventHitDensity(fdNdEtaCent,radius)  + UpcHitDensity(radius) ;
   return ( arealDensity ) ;  
 }
 
-double KMCDetector::OneEventHitDensity( Double_t multiplicity, Double_t radius ) const
+Double_t KMCDetector::OneEventHitDensity( Double_t multiplicity, Double_t radius ) const
 {
   // This is for one event at the vertex.  No smearing.
-  double den   = multiplicity / (2.*TMath::Pi()*radius*radius) * fDensFactorEta ; // 2 eta ?
+  Double_t den   = multiplicity / (2.*TMath::Pi()*radius*radius) * fDensFactorEta ; // 2 eta ?
   // note: surface of sphere is  '4*pi*r^2'
   //       surface of cylinder is '2*pi*r* h' 
   return den ;
 } 
 
-double KMCDetector::UpcHitDensity(Double_t radius)
+Double_t KMCDetector::UpcHitDensity(Double_t radius)
 { 
   // QED electrons ...
 
@@ -704,7 +736,7 @@ double KMCDetector::UpcHitDensity(Double_t radius)
   return mUPCelectrons ;
 }
 
-void KMCDetector::CalcDensFactorEta(double eta)
+void KMCDetector::CalcDensFactorEta(Double_t eta)
 {
   if (TMath::Abs(eta)<1e-3) fDensFactorEta = 1.;
   else {
@@ -713,46 +745,46 @@ void KMCDetector::CalcDensFactorEta(double eta)
   }
 }
 
-void KMCDetector::ApplyMS(KMCProbe* trc, double x2X0) const
+void KMCDetector::ApplyMS(KMCProbe* trc, Double_t x2X0) const
 {
   // simulate random modification of track params due to the MS
   if (x2X0<=0) return;
-  double alpha = trc->GetAlpha(); // store original alpha
-  double mass = trc->GetMass();
+  Double_t alpha = trc->GetAlpha(); // store original alpha
+  Double_t mass = trc->GetMass();
   //
-  double snp = trc->GetSnp();
-  double dip = trc->GetTgl();
+  Double_t snp = trc->GetSnp();
+  Double_t dip = trc->GetTgl();
   Double_t angle=TMath::Sqrt((1.+ dip*dip)/((1-snp)*(1.+snp)));
   x2X0 *= angle;
   //
-  static double covCorr[15],covDum[21]={0};
-  static double mom[3],pos[3];
-  double *cov = (double*) trc->GetCovariance();
+  static Double_t covCorr[15],covDum[21]={0};
+  static Double_t mom[3],pos[3];
+  Double_t *cov = (Double_t*) trc->GetCovariance();
   memcpy(covCorr,cov,15*sizeof(double));
   trc->GetXYZ(pos);
   trc->GetPxPyPz(mom);
-  double pt2 = mom[0]*mom[0]+mom[1]*mom[1];
-  double pt = TMath::Sqrt(pt2);
-  double ptot2 = pt2 + mom[2]*mom[2];
-  double ptot  = TMath::Sqrt(ptot2);
-  double beta = ptot/TMath::Sqrt(ptot2 + mass*mass);
-  double sigth = TMath::Sqrt(x2X0)*0.014/(ptot*beta);
+  Double_t pt2 = mom[0]*mom[0]+mom[1]*mom[1];
+  Double_t pt = TMath::Sqrt(pt2);
+  Double_t ptot2 = pt2 + mom[2]*mom[2];
+  Double_t ptot  = TMath::Sqrt(ptot2);
+  Double_t beta = ptot/TMath::Sqrt(ptot2 + mass*mass);
+  Double_t sigth = TMath::Sqrt(x2X0)*0.014/(ptot*beta);
   //
   // a la geant
-  double phiSC = gRandom->Rndm()*TMath::Pi();
-  double thtSC = gRandom->Gaus(0,1.4142*sigth);
+  Double_t phiSC = gRandom->Rndm()*TMath::Pi();
+  Double_t thtSC = gRandom->Gaus(0,1.4142*sigth);
   //  printf("MS phi: %+.5f tht: %+.5f\n",phiSC,thtSC);
-  double sn = TMath::Sin(thtSC);
-  double dx = sn*TMath::Sin(phiSC);
-  double dy = sn*TMath::Cos(phiSC);  
-  double dz = TMath::Cos(thtSC);
-  double v[3];
+  Double_t sn = TMath::Sin(thtSC);
+  Double_t dx = sn*TMath::Sin(phiSC);
+  Double_t dy = sn*TMath::Cos(phiSC);  
+  Double_t dz = TMath::Cos(thtSC);
+  Double_t v[3];
   //  printf("Before: %+.3e %+.3e %+.3e | MS: %+.3e %+.3e\n",mom[0],mom[1],mom[2],thtSC,phiSC);
   for (int i=3;i--;) mom[i] /= ptot;
-  double vmm = TMath::Sqrt(mom[0]*mom[0]+mom[1]*mom[1]);
+  Double_t vmm = TMath::Sqrt(mom[0]*mom[0]+mom[1]*mom[1]);
   if (!IsZero(pt)) {
-    double pd1 = mom[0]/vmm;
-    double pd2 = mom[1]/vmm;
+    Double_t pd1 = mom[0]/vmm;
+    Double_t pd2 = mom[1]/vmm;
     v[0] = pd1*mom[2]*dx - pd2*dy + mom[0]*dz;
     v[1] = pd2*mom[2]*dx + pd1*dy + mom[1]*dz;
     v[2] = -vmm*dx                + mom[2]*dz;
@@ -762,7 +794,7 @@ void KMCDetector::ApplyMS(KMCProbe* trc, double x2X0) const
     v[1] = dy;
     v[2] = dz*TMath::Sign(1.,mom[2]);
   }
-  double nrm = TMath::Sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
+  Double_t nrm = TMath::Sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
   //  printf("before :%+e %+e %+e  || %+e %+e %+e %+e\n",mom[0],mom[1],mom[2],  sigth, x2X0, pt, beta);
   //  trc->Print();
   // direction cosines -> p
@@ -775,19 +807,19 @@ void KMCDetector::ApplyMS(KMCProbe* trc, double x2X0) const
   //
 }
 
-KMCProbe* KMCDetector::PrepareKalmanTrack(double pt, double eta, double mass, int charge, double phi, double x,double y, double z)
+KMCProbe* KMCDetector::PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x,Double_t y, Double_t z)
 {
   // Prepare trackable Kalman track at the farthest position
   //
   // Set track parameters
   // Assume track started at (0,0,0) and shoots out on the X axis, and B field is on the Z axis
-  double lambda = TMath::Pi()/2.0 - 2.0*TMath::ATan(TMath::Exp(-eta)); 
+  Double_t lambda = TMath::Pi()/2.0 - 2.0*TMath::ATan(TMath::Exp(-eta)); 
   fProbeInMC0.Reset();
   fProbeInMC0.SetMass(mass);
   KMCProbe* probe = new KMCProbe(fProbeInMC0);
-  double *trPars = (double*)probe->GetParameter();
-  double *trCov  = (double*)probe->GetCovariance();
-  double xyz[3] = {x,y,z};
+  Double_t *trPars = (Double_t*)probe->GetParameter();
+  Double_t *trCov  = (Double_t*)probe->GetCovariance();
+  Double_t xyz[3] = {x,y,z};
   probe->Global2LocalPosition(xyz,phi);
   probe->Set(xyz[0],phi,trPars,trCov);
   trPars[KMCProbe::kY] = xyz[1];
@@ -814,7 +846,7 @@ int KMCDetector::TransportKalmanTrackWithMS(KMCProbe *probTr, Bool_t applyMatCor
   // Transport track till layer maxLr, applying random MS
   //
   int nActLrOK = 0;
-  double r = TMath::Sqrt(probTr->GetX()*probTr->GetX()+probTr->GetY()*probTr->GetY());
+  Double_t r = TMath::Sqrt(probTr->GetX()*probTr->GetX()+probTr->GetY()*probTr->GetY());
   fFirstActiveLayerTracked = -1;
   fLastActiveLayerTracked = -1;
   for (Int_t j=0; j<fNLayers; j++) {
@@ -835,7 +867,7 @@ int KMCDetector::TransportKalmanTrackWithMS(KMCProbe *probTr, Bool_t applyMatCor
     if (!accZOK) continue;
     
     // store randomized cluster local coordinates and phi
-    double rz,ry;
+    Double_t rz,ry;
     gRandom->Rannor(rz,ry);
     lr->GetMCCluster()->Set(probTr->GetY()+ry*lr->GetPhiRes(),probTr->GetZ()+rz*lr->GetZRes(), 
 			    probTr->GetX(), probTr->GetAlpha(), -1);
@@ -857,7 +889,7 @@ Bool_t KMCDetector::PropagateToLayer(KMCProbe* trc, const KMCLayer* lr, int dir)
   //
   // rotate to frame with X axis normal to the surface (defined by ideal track)
   if (!lr->IsVertex()) {
-    double phi = trc->PhiPos();
+    Double_t phi = trc->PhiPos();
     if ( TMath::Abs(TMath::Abs(phi)-TMath::Pi()/2)<1e-3) phi = 0;
     if (!trc->Rotate(phi)) {
       return kFALSE;
@@ -872,12 +904,12 @@ Bool_t KMCDetector::UpdateTrack(KMCProbe* trc, KMCLayer* lr, KMCCluster* cl) con
 {
   // update track with measured cluster
   // propagate to cluster
-  double meas[2] = {cl->GetY(),cl->GetZ()}; // ideal cluster coordinate
-  double measErr2[3] = {lr->fPhiRes*lr->fPhiRes,0,lr->fZRes*lr->fZRes};
+  Double_t meas[2] = {cl->GetY(),cl->GetZ()}; // ideal cluster coordinate
+  Double_t measErr2[3] = {lr->fPhiRes*lr->fPhiRes,0,lr->fZRes*lr->fZRes};
   //
   
   //
-  double chi2 = trc->GetPredictedChi2(meas,measErr2);
+  Double_t chi2 = trc->GetPredictedChi2(meas,measErr2);
   //  if (chi2>fMaxChi2Cl) return kTRUE; // chi2 is too large
   //  
   if (!trc->Update(meas,measErr2)) {
@@ -920,9 +952,14 @@ Bool_t KMCDetector::SolveSingleTrackAnalytically()
     if (accZOK && !lr->IsDead()) {
       probeInw.SetInnerChecked(lr->GetActiveID());
       cl = lr->GetMCCluster();
+      double chi2cl = fMaxChi2Cl, chi2clCorr = 2*fMaxChi2Cl;
       if (cl->IsValid()) {
 	if (!probeInw.PropagateToCluster(cl,fBFieldG)) return kFALSE; // track was not propagated to cluster frame
 	lr->SetExtInward(&probeInw); // set extrapolation errors
+	chi2clCorr = Chi2ToCluster(lr,&probeInw,cl);
+	//     }
+      // check if there could be background cluster with better chi2
+	
 	if (!UpdateTrack(&probeInw, lr, cl)) break;
       }
       else {
@@ -960,6 +997,32 @@ Bool_t KMCDetector::SolveSingleTrackAnalytically()
     printf("ProbeOut@%d: ",ilr); probeOut.Print("t");
   }
   //
+  /*
+  // do final inward propagation with eventual fake clusters attachment
+  probeInw = fProbeOutMC;
+  probeInw.ResetTrackingInfo();  // used default (pion) mass for tracking
+  if (outerReached<outerTracked) outerReached = outerTracked;
+  for (int ilr=outerReached+1;ilr--;) {
+    KMCLayer *lr = GetLayer(ilr);
+    if (!probeInw.PropagateToR(lr->GetRadius(), fBFieldG, kInward)) break;
+    Bool_t accZOK = lr->InZAcceptane(probeInw.GetZ());
+    if (!accZOK && !lr->IsDead()) {
+      probeInw.SetInnerChecked(lr->GetActiveID());
+      cl = lr->GetMCCluster();
+      if (cl->IsValid()) {
+	if (!probeInw.PropagateToCluster(cl,fBFieldG)) return kFALSE; // track was not propagated to cluster frame
+	lr->SetExtInward(&probeInw); // set extrapolation errors
+	if (!UpdateTrack(&probeInw, lr, cl)) break;
+      }
+      else {
+	lr->SetExtInward(&probeInw); // set extrapolation errors
+      }
+    }
+    
+    probeInw.SetInnerChecked(lr->GetActiveID());
+    
+  }
+  */
   // calculate combined estimates
   for (int ilr=fNLayers;ilr--;) {
     KMCLayer *lr = GetLayer(ilr);
@@ -969,12 +1032,12 @@ Bool_t KMCDetector::SolveSingleTrackAnalytically()
   
 }
 
-Bool_t KMCDetector::ExtrapolateToR(KMCProbe* probe, double r) const
+Bool_t KMCDetector::ExtrapolateToR(KMCProbe* probe, Double_t r) const
 {
   // go to radius correcting for materieals
   if (!probe) return kFALSE;
   KMCProbe probeC = *probe;
-  double curR2 = probe->GetX()*probe->GetX()+probe->GetY()*probe->GetY();
+  Double_t curR2 = probe->GetX()*probe->GetX()+probe->GetY()*probe->GetY();
   int dir = 0;
   int lrId0 = -1, lrIdTgt = -1; // 1st layer to cross and last layer in givem direction
   if (curR2 < r*r) {
@@ -1012,6 +1075,14 @@ Bool_t KMCDetector::ExtrapolateToR(KMCProbe* probe, double r) const
   *probe = probeC;
   return kTRUE;
 }
+
+Double_t KMCDetector::Chi2ToCluster(const KMCLayer* lr, const KMCProbe* trc, const KMCCluster* cl) const
+{
+  Double_t meas[2] = {cl->GetY(),cl->GetZ()}; // ideal cluster coordinate
+  Double_t measErr2[3] = {lr->GetPhiRes()*lr->GetPhiRes(),0,lr->GetZRes()*lr->GetZRes()};
+  return trc->GetPredictedChi2(meas,measErr2);
+}
+
 
 ///LAST
 
@@ -1150,8 +1221,8 @@ KMCProbe* KMCDetector::KalmanSmooth(int actLr, int actMin,int actMax) const
   //
   // weight both tracks
   if (!iwd.Propagate(owd.GetAlpha(),owd.GetX(),fBFieldG)) return 0;
-  double meas[2] = {owd.GetY(),owd.GetZ()};
-  double measErr2[3] = {owd.GetSigmaY2(), owd.GetSigmaZY(), owd.GetSigmaZ2()};
+  Double_t meas[2] = {owd.GetY(),owd.GetZ()};
+  Double_t measErr2[3] = {owd.GetSigmaY2(), owd.GetSigmaZY(), owd.GetSigmaZ2()};
   //  printf("Weighting\n");
   //  owd.Print("l");
   //  iwd.Print("l");
@@ -1241,7 +1312,7 @@ Bool_t KMCDetector::SolveSingleTrackViaKalman(Double_t mass, Double_t pt, Double
     fDensFactorEta = TMath::Tan( 2.*TMath::ATan(TMath::Exp(-TMath::Abs(eta))) );
     fDensFactorEta = 1./TMath::Sqrt( 1. + 1./fDensFactorEta/fDensFactorEta);
   }
-  double lambda = TMath::Pi()/2.0 - 2.0*TMath::ATan(TMath::Exp(-eta)); 
+  Double_t lambda = TMath::Pi()/2.0 - 2.0*TMath::ATan(TMath::Exp(-eta)); 
   KMCProbe* probe = PrepareKalmanTrack(pt,lambda,mass,-1);
   if (!probe) return kFALSE;
   //
@@ -1303,12 +1374,12 @@ Bool_t KMCDetector::SolveSingleTrackViaKalmanMC(int offset)
   //
   if (fLastActiveITSLayer<fLastActiveLayerTracked) { // prolongation from TPC
     // start from correct track propagated from above till maxLr
-    double *covMS = (double*)currTr->GetCovariance();
-    const double *covIdeal =lr->fTrCorr.GetCovariance();
+    Double_t *covMS = (Double_t*)currTr->GetCovariance();
+    const Double_t *covIdeal =lr->fTrCorr.GetCovariance();
     for (int i=15;i--;) covMS[i] = covIdeal[i];
   }
   else { // ITS SA: randomize the starting point
-    //    double *pars = (double*)currTr->GetParameter();
+    //    Double_t *pars = (Double_t*)currTr->GetParameter();
     //    pars[0] += gRandom->Gaus(0,TMath::Sqrt(currTr->GetSigmaY2()));
     //    pars[1] += gRandom->Gaus(0,TMath::Sqrt(currTr->GetSigmaZ2()));
     //
@@ -1395,9 +1466,9 @@ Bool_t KMCDetector::SolveSingleTrackViaKalmanMC(int offset)
       currTr = vtx->GetMCTrack(itr);
       if (currTr->IsKilled()) continue;
       KMCCluster* clv = vtx->GetMCCluster();
-      double meas[2] = {clv->GetY(),clv->GetZ()};
-      double measErr2[3] = {vtx->fPhiRes*vtx->fPhiRes,0,vtx->fZRes*vtx->fZRes};
-      double chi2v = currTr->GetPredictedChi2(meas,measErr2);
+      Double_t meas[2] = {clv->GetY(),clv->GetZ()};
+      Double_t measErr2[3] = {vtx->fPhiRes*vtx->fPhiRes,0,vtx->fZRes*vtx->fZRes};
+      Double_t chi2v = currTr->GetPredictedChi2(meas,measErr2);
       currTr->AddHit(vtx->GetActiveID(), chi2v, -1);
       currTr->SetInnerLrChecked(vtx->GetActiveID());
       if (NeedToKill(currTr)) currTr->Kill();
@@ -1418,8 +1489,8 @@ Int_t KMCDetector::GenBgClusters(KMCLayer* lr)
   if (fNBgLimits<1) return 0; // limits were not set - no track was prolongated
   //
   // Fix search limits to avoid seeds which will anyway point very far from the vertex
-  double tolY = TMath::Sqrt(lr->fSig2EstD)*fMaxChi2ClSQ;
-  double tolZ = TMath::Sqrt(lr->fSig2EstZ)*fMaxChi2ClSQ;
+  Double_t tolY = TMath::Sqrt(lr->fSig2EstD)*fMaxChi2ClSQ;
+  Double_t tolZ = TMath::Sqrt(lr->fSig2EstZ)*fMaxChi2ClSQ;
   
   //  printf("Before: Y: %+6.3f : %+6.3f tolY: %6.3f || Z: %+6.3f : %+6.3f tolZ: %6.3f\n",fBgYMin,fBgYMax,tolY, fBgZMin,fBgZMax,tolZ);
   if (fBgYMin < lr->fClCorr.fY-tolY) fBgYMin = lr->fClCorr.fY-tolY;
@@ -1428,23 +1499,23 @@ Int_t KMCDetector::GenBgClusters(KMCLayer* lr)
   if (fBgZMax > lr->fClCorr.fZ+tolZ) fBgZMax = lr->fClCorr.fZ+tolZ;
   //printf("After: Y: %+6.3f : %+6.3f tolY: %6.3f || Z: %+6.3f : %+6.3f tolZ: %6.3f\n",fBgYMin,fBgYMax,tolY, fBgZMin,fBgZMax,tolZ);
   //
-  double dy = fBgYMax - fBgYMin;
-  double dz = fBgZMax - fBgZMin;
-  double surf = dy*dz;               // surface of generation
+  Double_t dy = fBgYMax - fBgYMin;
+  Double_t dz = fBgZMax - fBgZMin;
+  Double_t surf = dy*dz;               // surface of generation
   if (surf<0) return 0;
-  double poissProb = surf*HitDensity(lr->fR)*lr->GetLayerEff();
+  Double_t poissProb = surf*HitDensity(lr->fR)*lr->GetLayerEff();
   AliDebug(2,Form("Bg for Lr %s (r=%.2f) : Density %.2f on surface %.2e [%+.4f : %+.4f][%+.4f %+.4f]",
 		  lr->GetName(),lr->fR,HitDensity(lr->fR),surf,fBgYMin,fBgYMax,fBgZMin,fBgZMax));
   int nFakesGen = gRandom->Poisson( poissProb ); // preliminary number of extra clusters to test
   KMCCluster *refCl = lr->GetMCCluster();
-  double sig2y = lr->GetPhiRes()*lr->GetPhiRes();
-  double sig2z = lr->GetZRes()*lr->GetZRes();
+  Double_t sig2y = lr->GetPhiRes()*lr->GetPhiRes();
+  Double_t sig2z = lr->GetZRes()*lr->GetZRes();
   for (int ic=nFakesGen;ic--;) {
-    double y = fBgYMin+dy*gRandom->Rndm();
-    double z = fBgZMin+dz*gRandom->Rndm();
-    double dfy = y-refCl->GetY();
-    double dfz = z-refCl->GetZ();
-    double dist = (dfy*dfy)/sig2y + (dfz*dfz)/sig2z;
+    Double_t y = fBgYMin+dy*gRandom->Rndm();
+    Double_t z = fBgZMin+dz*gRandom->Rndm();
+    Double_t dfy = y-refCl->GetY();
+    Double_t dfz = z-refCl->GetZ();
+    Double_t dist = (dfy*dfy)/sig2y + (dfz*dfz)/sig2z;
     if (dist<4) continue; // avoid overlap with MC cluster
     lr->AddBgCluster(y, z, refCl->GetX(), refCl->GetPhi());
   }
@@ -1458,12 +1529,12 @@ Int_t KMCDetector::GenBgClusters(KMCLayer* lr)
 void KMCDetector::UpdateSearchLimits(KMCProbe* probe, KMCLayer* lr)
 {
   // define the search window for track on layer (where the bg hist will be generated)
-  static double *currYMin = fBgYMinTr.GetArray();
-  static double *currYMax = fBgYMaxTr.GetArray();
-  static double *currZMin = fBgZMinTr.GetArray();
-  static double *currZMax = fBgZMaxTr.GetArray();
+  static Double_t *currYMin = fBgYMinTr.GetArray();
+  static Double_t *currYMax = fBgYMaxTr.GetArray();
+  static Double_t *currZMin = fBgZMinTr.GetArray();
+  static Double_t *currZMax = fBgZMaxTr.GetArray();
   //
-  double sizeY = probe->GetSigmaY2(), sizeZ = probe->GetSigmaZ2();
+  Double_t sizeY = probe->GetSigmaY2(), sizeZ = probe->GetSigmaZ2();
   //
   //  if (sizeY>2) sizeY=2;
   //  if (sizeZ>2) sizeZ=2;
@@ -1504,13 +1575,13 @@ void KMCDetector::CheckTrackProlongations(KMCProbe *probe, KMCLayer* lr, KMCLaye
   // explore prolongation of probe from lrP to lr with all possible clusters of lrP
   // the probe is already brought to clusters frame
   int nCl = lrP->GetNBgClusters();
-  double measErr2[3] = {lrP->fPhiRes*lrP->fPhiRes,0,lrP->fZRes*lrP->fZRes};
-  double meas[2] = {0,0};
+  Double_t measErr2[3] = {lrP->fPhiRes*lrP->fPhiRes,0,lrP->fZRes*lrP->fZRes};
+  Double_t meas[2] = {0,0};
   UInt_t tmpID = probe->GetUniqueID();
-  double yMin = fBgYMinTr[tmpID];
-  double yMax = fBgYMaxTr[tmpID];
-  double zMin = fBgZMinTr[tmpID];
-  double zMax = fBgZMaxTr[tmpID];
+  Double_t yMin = fBgYMinTr[tmpID];
+  Double_t yMax = fBgYMaxTr[tmpID];
+  Double_t zMin = fBgZMinTr[tmpID];
+  Double_t zMax = fBgZMaxTr[tmpID];
   //
   probe->SetInnerLrChecked(lrP->GetActiveID());
   for (int icl=-1;icl<nCl;icl++) {
@@ -1519,13 +1590,13 @@ void KMCDetector::CheckTrackProlongations(KMCProbe *probe, KMCLayer* lr, KMCLaye
       if (AliLog::GetGlobalDebugLevel()>1) {printf("Skip cluster %d ",icl); cl->Print();}
       continue;
     }
-    double y = cl->GetY();
-    double z = cl->GetZ();
+    Double_t y = cl->GetY();
+    Double_t z = cl->GetZ();
     AliDebug(2,Form("Check seed%d against cl#%d out of %d at layer %s | y:%+8.4f z:%+8.4f [%+.4f:%+.4f]  [%+.4f:%+.4f]",tmpID,icl,nCl,lrP->GetName(),y,z,yMin,yMax,zMin,zMax));
     if (AliLog::GetGlobalDebugLevel()>0) {
       if (icl==-1 && probe->GetNFakeITSHits()==0) {
 	meas[0] = y; meas[1] = z;
-	double chi2a = probe->GetPredictedChi2(meas,measErr2);
+	Double_t chi2a = probe->GetPredictedChi2(meas,measErr2);
 	if (chi2a>fMaxChi2Cl || (y<yMin || y>yMax) || (z<zMin || z>zMax)) {
 	  probe->Print();
 	  printf("Loosing good point (y:%+8.4f z:%+8.4f) on lr %s: chi2: %.2f  | dy:%+8.4f dz:%+8.4f [%+.4f:%+.4f]  [%+.4f:%+.4f] |x: %.2f %.2f | phi: %.2f %.2f\n",
@@ -1536,7 +1607,7 @@ void KMCDetector::CheckTrackProlongations(KMCProbe *probe, KMCLayer* lr, KMCLaye
     if (y<yMin || y>yMax) continue; // preliminary check on Y
     if (z<zMin || z>zMax) continue; // preliminary check on Z
     meas[0] = y; meas[1] = z;
-    double chi2 = probe->GetPredictedChi2(meas,measErr2);
+    Double_t chi2 = probe->GetPredictedChi2(meas,measErr2);
     if (fHMCLrChi2 && probe->GetNFakeITSHits()==0 && icl==-1) fHMCLrChi2->Fill(chi2,lrP->GetActiveID());
     AliDebug(2,Form("Seed-to-cluster chi2 = Chi2=%.2f",chi2));
     if (chi2>fMaxChi2Cl) continue;
@@ -1592,7 +1663,7 @@ Bool_t KMCDetector::NeedToKill(KMCProbe* probe) const
     }
     //
     if (nITS>2) {  // check if smallest possible norm chi2/ndf is acceptable
-      double chi2min = probe->GetChi2();
+      Double_t chi2min = probe->GetChi2();
       if (kModeKillMiss) {
 	int nMiss = fNActiveITSLayers - probe->GetInnerLayerChecked() - nITS; // layers already missed
 	chi2min = nMiss*probe->GetMissingHitPenalty();
@@ -1605,7 +1676,7 @@ Bool_t KMCDetector::NeedToKill(KMCProbe* probe) const
     }
     //
     // loose vertex constraint
-    double dst;
+    Double_t dst;
     if (nITS>=2) {
       probe->GetZAt(0,fBFieldG,dst);
       //printf("Zd (F%d): %f\n",probe->GetNFakeITSHits(),dst);
@@ -1665,18 +1736,18 @@ void KMCDetector::RequirePattern(UInt_t *patt, int groups)
 }
 
 //_____________________________________________________________________
-void KMCDetector::CalcHardSearchLimits(double dzv)
+void KMCDetector::CalcHardSearchLimits(Double_t dzv)
 {
   //
   TArrayD zlims;
   zlims.Set(fNActiveITSLayers);
   for (int il0=0;il0<fNActiveITSLayers;il0++) {
     KMCLayer* lr0 = GetActiveLayer(il0);
-    double angZTol = dzv/lr0->GetRadius();
+    Double_t angZTol = dzv/lr0->GetRadius();
     for (int il1=0;il1<fNActiveITSLayers;il1++) {
       if (il1==il0) continue;
       KMCLayer* lr1 = GetActiveLayer(il1);
-      double ztol = angZTol*TMath::Abs(lr0->GetRadius() - lr1->GetRadius());
+      Double_t ztol = angZTol*TMath::Abs(lr0->GetRadius() - lr1->GetRadius());
       if (ztol>zlims[il1]) zlims[il1] = ztol;
     }
   }
@@ -1685,15 +1756,15 @@ void KMCDetector::CalcHardSearchLimits(double dzv)
 }
 
 //_______________________________________________________
-double KMCDetector::PropagateBack(KMCProbe* trc) 
+Double_t KMCDetector::PropagateBack(KMCProbe* trc) 
 {
   static KMCProbe bwd;
   bwd = *trc;
   bwd.ResetCovMat();
-  static double measErr2[3] = {0,0,0};
-  static double meas[2] = {0,0};
+  static Double_t measErr2[3] = {0,0,0};
+  static Double_t meas[2] = {0,0};
   int icl = 0;
-  double chi2Tot = 0;
+  Double_t chi2Tot = 0;
   for (int il=1;il<=fLastActiveITSLayer;il++) {
     KMCLayer* lr = GetLayer(il);
     if (!PropagateToLayer(&bwd,lr,1)) return -1;
@@ -1704,7 +1775,7 @@ double KMCDetector::PropagateBack(KMCProbe* trc)
       meas[0] = clMC->GetY(); meas[1] = clMC->GetZ();
       measErr2[0] = lr->fPhiRes*lr->fPhiRes;
       measErr2[2] = lr->fZRes*lr->fZRes;
-      double chi2a = bwd.GetPredictedChi2(meas,measErr2);
+      Double_t chi2a = bwd.GetPredictedChi2(meas,measErr2);
       chi2Tot += chi2a;
       printf("Chis %d (cl%+3d): t2c: %6.3f tot: %6.3f\n",aID,icl,chi2a, chi2Tot);
       bwd.Update(meas,measErr2);
