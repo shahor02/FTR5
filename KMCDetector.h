@@ -257,6 +257,10 @@ class KMCDetector : public TNamed {
   KMCDetector(char *name,char *title);
   virtual ~KMCDetector();
 
+  // main method to check single track
+  Bool_t ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x=0.,Double_t y=0., Double_t z=0.);
+
+  
   void AddLayer(char *name, Double_t radius, Double_t zmax, Double_t radL, Double_t xrho=0., Double_t phiRes=-1, Double_t zRes=-1, Double_t eff=-1);
   Int_t GetLayerID(Int_t actID) const;
 
@@ -304,7 +308,7 @@ class KMCDetector : public TNamed {
   KMCLayer* GetLayer(const char* name) const {return (KMCLayer*) fLayers.FindObject(name);}
   KMCProbe* GetProbeTrack()       const {return (KMCProbe*)&fProbeInMC0;}
   void      ClassifyLayers();
-  void      Reset() { for (int i=fNLayers;i--;) GetLayer(i)->Reset(); }                  
+  void      Reset();
   void      SetMaxSnp(Double_t v) { fMaxSnp = v; }
   Double_t  GetMaxSnp() const { return fMaxSnp; }
   void      SetMaxChi2Cl(Double_t cut)  {fMaxChi2Cl = cut>0 ? cut:9;}
@@ -315,16 +319,13 @@ class KMCDetector : public TNamed {
   Double_t GetMaxNormChi2NDF()              const {return fMaxNormChi2NDF;}
   Int_t    GetMinHits()                     const {return fMinHits;}
 
-  
-  KMCProbe* PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi=0,Double_t x=0,Double_t y=0,Double_t z=0);
+
+  void PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi=0,Double_t x=0.,Double_t y=0.,Double_t z=0.);
   int TransportKalmanTrackWithMS(KMCProbe *probTr, Bool_t applyMatCorr=kTRUE);
   Bool_t PropagateToLayer(KMCProbe* trc, const KMCLayer* lr, int dir) const;
   Bool_t ExtrapolateToR(KMCProbe* probe, Double_t r) const;
   Bool_t UpdateTrack(KMCProbe* trc, KMCLayer* lr, KMCCluster* cl) const;
   Double_t  Chi2ToCluster(const KMCLayer* lr, const KMCProbe* trc, const KMCCluster* cl) const;
-
-  
-  Bool_t SolveSingleTrackAnalytically();
   
   /*  
   Bool_t SolveSingleTrackViaKalman(Double_t mass, Double_t pt, Double_t eta);

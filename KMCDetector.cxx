@@ -27,18 +27,11 @@ Fast Simulation tool for Inner Tracker Systems
 ***********************************************************/
 
 
-#define RIDICULOUS 999999 // A ridiculously large resolution (cm) to flag a dead detector
-
-#define Luminosity    1.e27       // Luminosity of the beam (LHC HI == 1.e27, RHIC II == 8.e27 )
-#define SigmaD        6.0         // Size of the interaction diamond (cm) (LHC = 6.0 cm)
 #define dNdEtaMinB    1//950//660//950           // Multiplicity per unit Eta  (AuAu MinBias = 170, Central = 700)
 // #define dNdEtaCent    2300//15000 //1600//2300        // Multiplicity per unit Eta  (LHC at 5.5 TeV not known)
 
-#define CrossSectionMinB         8    // minB Cross section for event under study (PbPb MinBias ~ 8 Barns)
-#define AcceptanceOfTpcAndSi     1 //1//0.60 //0.35  // Assumed geometric acceptance (efficiency) of the TPC and Si detectors
 #define UPCBackgroundMultiplier  1.0   // Increase multiplicity in detector (0.0 to 1.0 * UPCRate ) (eg 1.0)
 #define OtherBackground          0.0   // Increase multiplicity in detector (0.0 to 1.0 * minBias)  (eg 0.0)
-#define EfficiencySearchFlag     2     // Define search method:
                                        // -> ChiSquarePlusConfLevel = 2, ChiSquare = 1, Simple = 0.  
 
 #define PionMass                 0.139  // Mass of the Pion
@@ -807,21 +800,22 @@ void KMCDetector::ApplyMS(KMCProbe* trc, Double_t x2X0) const
   //
 }
 
-KMCProbe* KMCDetector::PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x,Double_t y, Double_t z)
+void KMCDetector::PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x,Double_t y, Double_t z)
 {
   // Prepare trackable Kalman track at the farthest position
   //
   // Set track parameters
   // Assume track started at (0,0,0) and shoots out on the X axis, and B field is on the Z axis
-  Double_t lambda = TMath::Pi()/2.0 - 2.0*TMath::ATan(TMath::Exp(-eta)); 
+  Double_t lambda = TMath::Pi()/2.0 - 2.0*TMath::ATan(TMath::Exp(-eta));
+  Reset();
   fProbeInMC0.Reset();
   fProbeInMC0.SetMass(mass);
-  KMCProbe* probe = new KMCProbe(fProbeInMC0);
-  Double_t *trPars = (Double_t*)probe->GetParameter();
-  Double_t *trCov  = (Double_t*)probe->GetCovariance();
+  KMCProbe probe(fProbeInMC0);
+  Double_t *trPars = (Double_t*)probe.GetParameter();
+  Double_t *trCov  = (Double_t*)probe.GetCovariance();
   Double_t xyz[3] = {x,y,z};
-  probe->Global2LocalPosition(xyz,phi);
-  probe->Set(xyz[0],phi,trPars,trCov);
+  probe.Global2LocalPosition(xyz,phi);
+  probe.Set(xyz[0],phi,trPars,trCov);
   trPars[KMCProbe::kY] = xyz[1];
   trPars[KMCProbe::kZ] = xyz[2];
   trPars[KMCProbe::kSnp] = 0;                       // track along X axis at the vertex
@@ -830,13 +824,12 @@ KMCProbe* KMCDetector::PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t ma
   //
   // put tiny errors to propagate to the outer-most radius
   trCov[KMCProbe::kY2] = trCov[KMCProbe::kZ2] = trCov[KMCProbe::kSnp2] = trCov[KMCProbe::kTgl2] = trCov[KMCProbe::kPtI2] = 1e-20;
-  fProbeInMC0 = *probe;  // store original track
+  fProbeInMC0 = probe;  // store original track
   //
-  Bool_t res = TransportKalmanTrackWithMS(probe);
-  probe->ResetCovMat();// reset cov.matrix
-  fProbeOutMC = *probe; // store propagated track
+  TransportKalmanTrackWithMS(&probe);
+  probe.ResetCovMat();// reset cov.matrix
+  fProbeOutMC = probe; // store propagated track
   //
-  return probe;
 }
 
 
@@ -923,10 +916,11 @@ Bool_t KMCDetector::UpdateTrack(KMCProbe* trc, KMCLayer* lr, KMCCluster* cl) con
   return kTRUE;
 }
 
-Bool_t KMCDetector::SolveSingleTrackAnalytically()
+Bool_t KMCDetector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x,Double_t y, Double_t z)
 {
   // find analytical solution for given seed
-
+  PrepareKalmanTrack(pt, eta, mass, charge, phi, x,y, z);
+  
   if (fLastActiveLayerTracked<0) return kFALSE; // no hits
   
   // do backward propagation 
@@ -1039,7 +1033,7 @@ Bool_t KMCDetector::ExtrapolateToR(KMCProbe* probe, Double_t r) const
   KMCProbe probeC = *probe;
   Double_t curR2 = probe->GetX()*probe->GetX()+probe->GetY()*probe->GetY();
   int dir = 0;
-  int lrId0 = -1, lrIdTgt = -1; // 1st layer to cross and last layer in givem direction
+  int lrId0 = -1, lrIdTgt = -1; // 1st layer to cross and last layer in given direction
   if (curR2 < r*r) {
     dir = 1; // outward
     lrIdTgt = fNLayers;
@@ -1083,6 +1077,11 @@ Double_t KMCDetector::Chi2ToCluster(const KMCLayer* lr, const KMCProbe* trc, con
   return trc->GetPredictedChi2(meas,measErr2);
 }
 
+void KMCDetector::Reset()
+{
+  for (int i=fNLayers;i--;) GetLayer(i)->Reset();
+  fFirstActiveLayerTracked = fLastActiveLayerTracked = -1;
+}
 
 ///LAST
 
