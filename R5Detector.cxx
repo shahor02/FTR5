@@ -932,7 +932,7 @@ Bool_t R5Detector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int ch
   int outerTracked = GetLayerID(fLastActiveLayerTracked);
   probeInw.SetOuterChecked(fLastActiveLayerTracked);
 
-  printf("ProbeIni: "); probeInw.Print("t");
+  //  printf("ProbeIni: "); probeInw.Print("t");
   int innerReached = -1;
   
   for (int ilr = outerTracked+1 ;ilr--;) {
@@ -962,8 +962,9 @@ Bool_t R5Detector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int ch
     }
     if (accZOK && !probeInw.CorrectForMeanMaterial(lr,kTRUE)) return kFALSE;
     innerReached = ilr;    
-    printf("ProbeInw@%d: ",ilr); probeInw.Print("t");    
+    //    printf("ProbeInw@%d: ",ilr); probeInw.Print("t");    
   }
+  fProbeInward = probeInw;
   
   // do outward propagation
   R5Probe probeOut = probeInw;
@@ -988,7 +989,7 @@ Bool_t R5Detector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int ch
     }
     if (accZOK && !probeOut.CorrectForMeanMaterial(lr,kFALSE)) return kFALSE;   
     outerReached = ilr;    
-    printf("ProbeOut@%d: ",ilr); probeOut.Print("t");
+    //    printf("ProbeOut@%d: ",ilr); probeOut.Print("t");
   }
   //
   /*

@@ -306,7 +306,8 @@ class R5Detector : public TNamed {
   R5Layer* GetLayer(Int_t i)          const {return (R5Layer*) fLayers.At(i);}
   R5Layer* GetActiveLayer(Int_t actID)    const {int pid=GetLayerID(actID); return pid<0 ? 0:GetLayer(pid);}
   R5Layer* GetLayer(const char* name) const {return (R5Layer*) fLayers.FindObject(name);}
-  R5Probe* GetProbeTrack()       const {return (R5Probe*)&fProbeInMC0;}
+  R5Probe* GetProbeGen()         const {return (R5Probe*)&fProbeInMC0;}
+  R5Probe* GetProbeTrackInward() const {return (R5Probe*)&fProbeInward;}
   void      ClassifyLayers();
   void      Reset();
   void      SetMaxSnp(Double_t v) { fMaxSnp = v; }
@@ -385,6 +386,7 @@ class R5Detector : public TNamed {
   //
   R5Probe fProbeInMC0; // initially provided probe
   R5Probe fProbeOutMC; // probe propagated to outer radius with material effects
+  R5Probe fProbeInward; // probe after innermost update
   //
   static Double_t fgVtxConstraint[2];  // if both positive, the vertex is used as constraint (accounted in chi2 but not in update)
   ClassDef(R5Detector,1);
