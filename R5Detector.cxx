@@ -1,7 +1,7 @@
-//Bool_t KMCDetector::SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, Double_t phi,
-//KMCProbe* KMCDetector::PrepareKalmanTrack(Double_t pt, Double_t lambda, Double_t mass, int charge, Double_t phi, Double_t x,Double_t y, Double_t z)
+//Bool_t R5Detector::SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, Double_t phi,
+//R5Probe* R5Detector::PrepareKalmanTrack(Double_t pt, Double_t lambda, Double_t mass, int charge, Double_t phi, Double_t x,Double_t y, Double_t z)
 
-#include "KMCDetector.h"
+#include "R5Detector.h"
 #include <TMath.h>
 #include <TH1F.h>
 #include <TProfile.h>
@@ -40,14 +40,14 @@ Fast Simulation tool for Inner Tracker Systems
 
 //TMatrixD *probKomb; // table for efficiency kombinatorics
 
-ClassImp(KMCProbe)
+ClassImp(R5Probe)
 
-Int_t    KMCProbe::fgNLayers = 0;
-Double_t KMCProbe::fgMissingHitPenalty = 2.;
+Int_t    R5Probe::fgNLayers = 0;
+Double_t R5Probe::fgMissingHitPenalty = 2.;
 
 
 //__________________________________________________________________________
-KMCProbe::KMCProbe() :
+R5Probe::R5Probe() :
   fMass(0.14),
   fChi2(0),
   fHits(0),
@@ -60,7 +60,7 @@ KMCProbe::KMCProbe() :
 }
 
 //__________________________________________________________________________
-KMCProbe& KMCProbe::operator=(const KMCProbe& src) 
+R5Probe& R5Probe::operator=(const R5Probe& src) 
 {
   if (this!=&src) {
     AliExternalTrackParam::operator=(src);
@@ -77,7 +77,7 @@ KMCProbe& KMCProbe::operator=(const KMCProbe& src)
 }
 
 //__________________________________________________________________________
-KMCProbe::KMCProbe(KMCProbe& src) 
+R5Probe::R5Probe(R5Probe& src) 
   : AliExternalTrackParam(src),
     fMass(src.fMass),
     fChi2(src.fChi2),
@@ -91,7 +91,7 @@ KMCProbe::KMCProbe(KMCProbe& src)
 }
 
 //__________________________________________________________________________
-void KMCProbe::Reset()
+void R5Probe::Reset()
 {
   fMass = 0.14;
   fChi2 = 0;
@@ -102,7 +102,7 @@ void KMCProbe::Reset()
 }
 
 //__________________________________________________________________________
-void KMCProbe::ResetTrackingInfo()
+void R5Probe::ResetTrackingInfo()
 {
   fMass = 0.14;
   fChi2 = 0;
@@ -115,7 +115,7 @@ void KMCProbe::ResetTrackingInfo()
 
 
 //__________________________________________________________________________
-void KMCProbe::ResetCovMat()
+void R5Probe::ResetCovMat()
 {
   // reset errors
   Double_t *trCov  = (Double_t*)GetCovariance();
@@ -131,7 +131,7 @@ void KMCProbe::ResetCovMat()
 }
 
 //__________________________________________________________________________
-void KMCProbe::Print(Option_t* option) const
+void R5Probe::Print(Option_t* option) const
 {
   printf("M=%.3f Chi2=%7.2f (Norm:%6.2f) Checked: %d-%d, Hits: Total:%d Fakes:%d | Y:%+8.4f Z: %+8.4f |", 
 	 fMass,fChi2,GetNormChi2(kTRUE),fInnerChecked,fOuterChecked, fNHits,fNHitsFake, GetY(),GetZ());
@@ -145,7 +145,7 @@ void KMCProbe::Print(Option_t* option) const
 }
 
 //__________________________________________________________________________
-Bool_t KMCProbe::GetXatLabR(Double_t r,Double_t &x, Double_t bz, Int_t dir) const
+Bool_t R5Probe::GetXatLabR(Double_t r,Double_t &x, Double_t bz, Int_t dir) const
 {
   // Get local X of the track position estimated at the radius lab radius r. 
   // The track curvature is accounted exactly
@@ -274,7 +274,7 @@ Bool_t KMCProbe::GetXatLabR(Double_t r,Double_t &x, Double_t bz, Int_t dir) cons
 }
 
 //____________________________________
-Bool_t KMCProbe::PropagateToR(Double_t r, Double_t b, int dir) 
+Bool_t R5Probe::PropagateToR(Double_t r, Double_t b, int dir) 
 {
   // go to radius R
   //
@@ -334,7 +334,7 @@ Bool_t KMCProbe::PropagateToR(Double_t r, Double_t b, int dir)
 
 
 //__________________________________________________________________________
-Bool_t KMCProbe::CorrectForMeanMaterial(const KMCLayer* lr, Bool_t inward)
+Bool_t R5Probe::CorrectForMeanMaterial(const R5Layer* lr, Bool_t inward)
 {
   //  printf("before at r=%.1f p=%.4f\n",lr->fR, P());
   if (AliExternalTrackParam::CorrectForMeanMaterial(lr->fx2X0, inward ? lr->fXRho : -lr->fXRho, GetMass() , kTRUE)) {
@@ -347,16 +347,16 @@ Bool_t KMCProbe::CorrectForMeanMaterial(const KMCLayer* lr, Bool_t inward)
 }
 
 /////////////////////////////////////////////////////////////////////////////
-ClassImp(KMCCluster)
+ClassImp(R5Cluster)
 
 //_________________________________________________________________________
-KMCCluster::KMCCluster(KMCCluster &src) 
+R5Cluster::R5Cluster(R5Cluster &src) 
 : TObject(src),
   fY(src.fY),fZ(src.fZ),fX(src.fX),fPhi(src.fPhi)
 {}
 
 //__________________________________________________________________________
-KMCCluster& KMCCluster::operator=(const KMCCluster& src) 
+R5Cluster& R5Cluster::operator=(const R5Cluster& src) 
 {
   if (this!=&src) {
     TObject::operator=(src);
@@ -369,23 +369,23 @@ KMCCluster& KMCCluster::operator=(const KMCCluster& src)
 }
 
 //_________________________________________________________________________
-void KMCCluster::Print(Option_t *) const 
+void R5Cluster::Print(Option_t *) const 
 {
   printf(" Local YZ = (%3.4lf,%3.4lf) | X=%3.4lf  phi: %+.3f %s\n",fY,fZ,fX,fPhi,IsKilled()?"Killed":""); 
 }
 
 /////////////////////////////////////////////////////////////////////////////
-ClassImp(KMCLayer)
+ClassImp(R5Layer)
 
 //__________________________________________________________________________
-KMCLayer::KMCLayer(char *name) : 
+R5Layer::R5Layer(char *name) : 
   TNamed(name,name),fR(0),fx2X0(0),fPhiRes(0),fZRes(0),fEff(0),fIsDead(kFALSE),fActiveID(-1),fClMC()
 {
   Reset();
 }
 
 //__________________________________________________________________________
-void KMCLayer::CalcExtComb()
+void R5Layer::CalcExtComb()
 {
   // calculate combined extrapolation spot
   if (fExtInward[kSigY2]<0) { // inward is not defined
@@ -425,7 +425,7 @@ void KMCLayer::CalcExtComb()
 }
 
 //__________________________________________________________________________
-void KMCLayer::Print(Option_t *opt) const
+void R5Layer::Print(Option_t *opt) const
 {
   TString opts = opt; opts.ToLower();
   printf("Lr%3d(A%3d) %10s R=%5.1f Zmx=%5.1f X2X0=%.3f XRho=%.3f SigY=%+.5f SigZ=%+.5f Eff:%+4.2f\n",
@@ -445,7 +445,7 @@ void KMCLayer::Print(Option_t *opt) const
 }
 
 //_________________________________________________________
-void KMCLayer::Diagonalize2x2Matrix(Double_t sigAA, Double_t sigBA, Double_t sigBB, Double_t &sig11, Double_t &sig22, Double_t &theta)
+void R5Layer::Diagonalize2x2Matrix(Double_t sigAA, Double_t sigBA, Double_t sigBB, Double_t &sig11, Double_t &sig22, Double_t &theta)
 {
   // find diagonalied matrix and rotation which diagonalizes it
   Double_t diff = (sigAA-sigBB);
@@ -474,11 +474,11 @@ void KMCLayer::Diagonalize2x2Matrix(Double_t sigAA, Double_t sigBA, Double_t sig
 }
 
 /////////////////////////////////////////////////////////////////////////////
-Double_t KMCDetector::fgVtxConstraint[2]={-1,-1};
+Double_t R5Detector::fgVtxConstraint[2]={-1,-1};
 
-ClassImp(KMCDetector)
+ClassImp(R5Detector)
 
-KMCDetector::KMCDetector() :
+R5Detector::R5Detector() :
 TNamed("test_detector","detector"),
   fNLayers(0),
   fNActiveLayers(0),
@@ -500,7 +500,7 @@ TNamed("test_detector","detector"),
   //
 }
 
-KMCDetector::KMCDetector(char *name, char *title)
+R5Detector::R5Detector(char *name, char *title)
   : TNamed(name,title),
     fNLayers(0),
     fNActiveLayers(0),
@@ -524,21 +524,21 @@ KMCDetector::KMCDetector(char *name, char *title)
   //  fLayers = new TObjArray();
 }
 
-KMCDetector::~KMCDetector() { // 
+R5Detector::~R5Detector() { // 
   // virtual destructor
   //
   //  delete fLayers;
 }
 
-void KMCDetector::AddLayer(char *name, Double_t radius, Double_t zmax, Double_t x2X0, Double_t xrho, Double_t phiRes, Double_t zRes, Double_t eff) {
+void R5Detector::AddLayer(char *name, Double_t radius, Double_t zmax, Double_t x2X0, Double_t xrho, Double_t phiRes, Double_t zRes, Double_t eff) {
   //
   // Add additional layer to the list of layers (ordered by radius)
   // 
 
-  KMCLayer *newLayer = (KMCLayer*) fLayers.FindObject(name);
+  R5Layer *newLayer = (R5Layer*) fLayers.FindObject(name);
 
   if (!newLayer) {
-    newLayer = new KMCLayer(name);
+    newLayer = new R5Layer(name);
     newLayer->fR = radius;
     newLayer->fZMax = zmax;
     newLayer->fx2X0 = x2X0;
@@ -549,7 +549,7 @@ void KMCDetector::AddLayer(char *name, Double_t radius, Double_t zmax, Double_t 
     newLayer->fEff = eff;
     newLayer->fActiveID = -2;
     TString lname = name;
-    if (lname.Contains("vertex")) newLayer->SetBit(KMCLayer::kBitVertex);
+    if (lname.Contains("vertex")) newLayer->SetBit(R5Layer::kBitVertex);
     //
     newLayer->fIsDead =  (newLayer->fPhiRes<0 && newLayer->fZRes<0) || newLayer->fEff<=0.;
     //
@@ -558,7 +558,7 @@ void KMCDetector::AddLayer(char *name, Double_t radius, Double_t zmax, Double_t 
     else {
       //
       for (Int_t i = 0; i<fLayers.GetEntries(); i++) {
-	KMCLayer *l = (KMCLayer*)fLayers.At(i);
+	R5Layer *l = (R5Layer*)fLayers.At(i);
 	if (radius<l->fR) { fLayers.AddBefore(l,newLayer); break; }
 	  if (radius>l->fR && (i+1)==fLayers.GetEntries() ) fLayers.Add(newLayer); // even bigger then last one
       }
@@ -574,7 +574,7 @@ void KMCDetector::AddLayer(char *name, Double_t radius, Double_t zmax, Double_t 
 }
 
 //____________________________________________________________
-void KMCDetector::ClassifyLayers()
+void R5Detector::ClassifyLayers()
 {
   // assign active Id's, etc
   fFirstActiveLayer = fLastActiveLayer = -1;
@@ -583,7 +583,7 @@ void KMCDetector::ClassifyLayers()
   //
   int nl = GetNLayers();
   for (int il=0;il<nl;il++) {
-    KMCLayer* lr = GetLayer(il);
+    R5Layer* lr = GetLayer(il);
     lr->SetUniqueID(il);
     if (!lr->IsDead()) {
       fLastActiveLayer = il; 
@@ -592,12 +592,12 @@ void KMCDetector::ClassifyLayers()
     }
   }
   //
-  KMCProbe::SetNLayers(fNActiveLayers);
+  R5Probe::SetNLayers(fNActiveLayers);
 }
 
 
 //________________________________________________________________________________
-Int_t KMCDetector::GetLayerID(int actID) const
+Int_t R5Detector::GetLayerID(int actID) const
 {
   // find physical layer id from active id
   if (actID<0 || actID>fNActiveLayers) return -1;
@@ -607,7 +607,7 @@ Int_t KMCDetector::GetLayerID(int actID) const
   return -1;
 }
 
-void KMCDetector::Print(const Option_t* opt) const {
+void R5Detector::Print(const Option_t* opt) const {
   //
   // Prints the detector layout
   //
@@ -616,7 +616,7 @@ void KMCDetector::Print(const Option_t* opt) const {
   if (fLayers.GetEntries()>0)  printf("  Name \t\t r [cm] \t  X0 \t  phi & z res [um]\n");
 
   for (Int_t i = 0; i<fLayers.GetEntries(); i++) {
-    KMCLayer* tmp = (KMCLayer*)fLayers.At(i);
+    R5Layer* tmp = (R5Layer*)fLayers.At(i);
     tmp->Print(opt);
     
     // printf("%d. %s \t %03.2f   \t%1.4f\t  ",i, tmp->GetName(), tmp->GetRadius(), tmp->GetRadL() );
@@ -627,7 +627,7 @@ void KMCDetector::Print(const Option_t* opt) const {
   }
 }
 
-Double_t KMCDetector::ThetaMCS ( Double_t mass, Double_t x2X0, Double_t momentum ) const
+Double_t R5Detector::ThetaMCS ( Double_t mass, Double_t x2X0, Double_t momentum ) const
 {
   //
   // returns the Multiple Couloumb scattering angle (compare PDG boolet, 2010, equ. 27.14)
@@ -640,7 +640,7 @@ Double_t KMCDetector::ThetaMCS ( Double_t mass, Double_t x2X0, Double_t momentum
   return (theta) ;
 }
 
-Double_t KMCDetector::ProbGoodHit ( Double_t radius, Double_t searchRadiusRPhi, Double_t searchRadiusZ ) 
+Double_t R5Detector::ProbGoodHit ( Double_t radius, Double_t searchRadiusRPhi, Double_t searchRadiusZ ) 
 {
   // Based on work by Howard Wieman: http://rnc.lbl.gov/~wieman/GhostTracks.htm 
   // and http://rnc.lbl.gov/~wieman/HitFinding2D.htm
@@ -653,7 +653,7 @@ Double_t KMCDetector::ProbGoodHit ( Double_t radius, Double_t searchRadiusRPhi, 
 }
 
 
-Double_t KMCDetector::ProbGoodChiSqHit ( Double_t radius, Double_t searchRadiusRPhi, Double_t searchRadiusZ ) 
+Double_t R5Detector::ProbGoodChiSqHit ( Double_t radius, Double_t searchRadiusRPhi, Double_t searchRadiusZ ) 
 {
   // Based on work by Victor Perevoztchikov and Howard Wieman: http://rnc.lbl.gov/~wieman/HitFinding2DXsq.htm
   // This is the probability of getting a good hit using a Chi**2 search on a 2D Gaussian distribution function
@@ -663,7 +663,7 @@ Double_t KMCDetector::ProbGoodChiSqHit ( Double_t radius, Double_t searchRadiusR
   return ( goodHit ) ;  
 }
 
-Double_t KMCDetector::ProbGoodChiSqPlusConfHit ( Double_t radius, Double_t leff,
+Double_t R5Detector::ProbGoodChiSqPlusConfHit ( Double_t radius, Double_t leff,
 						 Double_t searchRadiusRPhi, Double_t searchRadiusZ, Double_t confLevel) 
 {
   // Based on work by Ruben Shahoyen 
@@ -677,7 +677,7 @@ Double_t KMCDetector::ProbGoodChiSqPlusConfHit ( Double_t radius, Double_t leff,
   return ( goodHit ) ;  
 }
 
-Double_t KMCDetector::ProbNullChiSqPlusConfHit ( Double_t radius, Double_t leff,
+Double_t R5Detector::ProbNullChiSqPlusConfHit ( Double_t radius, Double_t leff,
 						 Double_t searchRadiusRPhi, Double_t searchRadiusZ, Double_t confLevel) 
 {
   // Based on work by Ruben Shahoyan 
@@ -690,7 +690,7 @@ Double_t KMCDetector::ProbNullChiSqPlusConfHit ( Double_t radius, Double_t leff,
 }
 
 
-Double_t KMCDetector::HitDensity ( Double_t radius ) 
+Double_t R5Detector::HitDensity ( Double_t radius ) 
 {
   // Background (0-1) is included via 'OtherBackground' which multiplies the minBias rate by a scale factor.
   // UPC electrons is a temporary kludge that is based on Kai Schweda's summary of Kai Hainken's MC results
@@ -705,7 +705,7 @@ Double_t KMCDetector::HitDensity ( Double_t radius )
   return ( arealDensity ) ;  
 }
 
-Double_t KMCDetector::OneEventHitDensity( Double_t multiplicity, Double_t radius ) const
+Double_t R5Detector::OneEventHitDensity( Double_t multiplicity, Double_t radius ) const
 {
   // This is for one event at the vertex.  No smearing.
   Double_t den   = multiplicity / (2.*TMath::Pi()*radius*radius) * fDensFactorEta ; // 2 eta ?
@@ -714,7 +714,7 @@ Double_t KMCDetector::OneEventHitDensity( Double_t multiplicity, Double_t radius
   return den ;
 } 
 
-Double_t KMCDetector::UpcHitDensity(Double_t radius)
+Double_t R5Detector::UpcHitDensity(Double_t radius)
 { 
   // QED electrons ...
 
@@ -729,7 +729,7 @@ Double_t KMCDetector::UpcHitDensity(Double_t radius)
   return mUPCelectrons ;
 }
 
-void KMCDetector::CalcDensFactorEta(Double_t eta)
+void R5Detector::CalcDensFactorEta(Double_t eta)
 {
   if (TMath::Abs(eta)<1e-3) fDensFactorEta = 1.;
   else {
@@ -738,7 +738,7 @@ void KMCDetector::CalcDensFactorEta(Double_t eta)
   }
 }
 
-void KMCDetector::ApplyMS(KMCProbe* trc, Double_t x2X0) const
+void R5Detector::ApplyMS(R5Probe* trc, Double_t x2X0) const
 {
   // simulate random modification of track params due to the MS
   if (x2X0<=0) return;
@@ -800,7 +800,7 @@ void KMCDetector::ApplyMS(KMCProbe* trc, Double_t x2X0) const
   //
 }
 
-void KMCDetector::PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x,Double_t y, Double_t z)
+void R5Detector::PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x,Double_t y, Double_t z)
 {
   // Prepare trackable Kalman track at the farthest position
   //
@@ -810,20 +810,20 @@ void KMCDetector::PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t mass, i
   Reset();
   fProbeInMC0.Reset();
   fProbeInMC0.SetMass(mass);
-  KMCProbe probe(fProbeInMC0);
+  R5Probe probe(fProbeInMC0);
   Double_t *trPars = (Double_t*)probe.GetParameter();
   Double_t *trCov  = (Double_t*)probe.GetCovariance();
   Double_t xyz[3] = {x,y,z};
   probe.Global2LocalPosition(xyz,phi);
   probe.Set(xyz[0],phi,trPars,trCov);
-  trPars[KMCProbe::kY] = xyz[1];
-  trPars[KMCProbe::kZ] = xyz[2];
-  trPars[KMCProbe::kSnp] = 0;                       // track along X axis at the vertex
-  trPars[KMCProbe::kTgl] = TMath::Tan(lambda);      // dip
-  trPars[KMCProbe::kPtI] = charge/pt;               // q/pt      
+  trPars[R5Probe::kY] = xyz[1];
+  trPars[R5Probe::kZ] = xyz[2];
+  trPars[R5Probe::kSnp] = 0;                       // track along X axis at the vertex
+  trPars[R5Probe::kTgl] = TMath::Tan(lambda);      // dip
+  trPars[R5Probe::kPtI] = charge/pt;               // q/pt      
   //
   // put tiny errors to propagate to the outer-most radius
-  trCov[KMCProbe::kY2] = trCov[KMCProbe::kZ2] = trCov[KMCProbe::kSnp2] = trCov[KMCProbe::kTgl2] = trCov[KMCProbe::kPtI2] = 1e-20;
+  trCov[R5Probe::kY2] = trCov[R5Probe::kZ2] = trCov[R5Probe::kSnp2] = trCov[R5Probe::kTgl2] = trCov[R5Probe::kPtI2] = 1e-20;
   fProbeInMC0 = probe;  // store original track
   //
   TransportKalmanTrackWithMS(&probe);
@@ -834,7 +834,7 @@ void KMCDetector::PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t mass, i
 
 
 //________________________________________________________________________________
-int KMCDetector::TransportKalmanTrackWithMS(KMCProbe *probTr, Bool_t applyMatCorr)
+int R5Detector::TransportKalmanTrackWithMS(R5Probe *probTr, Bool_t applyMatCorr)
 {
   // Transport track till layer maxLr, applying random MS
   //
@@ -844,7 +844,7 @@ int KMCDetector::TransportKalmanTrackWithMS(KMCProbe *probTr, Bool_t applyMatCor
   fLastActiveLayerTracked = -1;
   for (Int_t j=0; j<fNLayers; j++) {
     if (j>fLastActiveLayer) continue;
-    KMCLayer* lr = (KMCLayer*)fLayers.At(j);
+    R5Layer* lr = (R5Layer*)fLayers.At(j);
     if (lr->GetRadius() <= r) continue;
     if (!PropagateToLayer(probTr,lr,1)) break;
     if (TMath::Abs(probTr->GetSnp())>fMaxSnp) break;
@@ -875,7 +875,7 @@ int KMCDetector::TransportKalmanTrackWithMS(KMCProbe *probTr, Bool_t applyMatCor
 }
 
 //____________________________________________________________________________
-Bool_t KMCDetector::PropagateToLayer(KMCProbe* trc, const KMCLayer* lr, int dir) const
+Bool_t R5Detector::PropagateToLayer(R5Probe* trc, const R5Layer* lr, int dir) const
 {
   // bring the track to layer and rotat to frame normal to its surface
   if (!trc->PropagateToR(lr->fR,fBFieldG, dir)) return kFALSE;
@@ -893,7 +893,7 @@ Bool_t KMCDetector::PropagateToLayer(KMCProbe* trc, const KMCLayer* lr, int dir)
 }
 
 //____________________________________________________________________________
-Bool_t KMCDetector::UpdateTrack(KMCProbe* trc, KMCLayer* lr, KMCCluster* cl) const
+Bool_t R5Detector::UpdateTrack(R5Probe* trc, R5Layer* lr, R5Cluster* cl) const
 {
   // update track with measured cluster
   // propagate to cluster
@@ -916,7 +916,7 @@ Bool_t KMCDetector::UpdateTrack(KMCProbe* trc, KMCLayer* lr, KMCCluster* cl) con
   return kTRUE;
 }
 
-Bool_t KMCDetector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x,Double_t y, Double_t z)
+Bool_t R5Detector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x,Double_t y, Double_t z)
 {
   // find analytical solution for given seed
   PrepareKalmanTrack(pt, eta, mass, charge, phi, x,y, z);
@@ -924,9 +924,9 @@ Bool_t KMCDetector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int c
   if (fLastActiveLayerTracked<0) return kFALSE; // no hits
   
   // do backward propagation 
-  KMCProbe probeInw = fProbeOutMC;
+  R5Probe probeInw = fProbeOutMC;
   probeInw.ResetTrackingInfo();  // used default (pion) mass for tracking
-  KMCCluster* cl = 0;
+  R5Cluster* cl = 0;
   // covariance matrix must be already reset
   int innerTracked = GetLayerID(fFirstActiveLayerTracked);
   int outerTracked = GetLayerID(fLastActiveLayerTracked);
@@ -939,7 +939,7 @@ Bool_t KMCDetector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int c
 
     //if (ilr<innerTracked) break;
 
-    KMCLayer *lr = GetLayer(ilr);
+    R5Layer *lr = GetLayer(ilr);
     if (!probeInw.PropagateToR(lr->GetRadius(), fBFieldG, kInward)) break;
     if (TMath::Abs(probeInw.GetSnp())>GetMaxSnp()) break; // too large snp
     Bool_t accZOK = lr->InZAcceptane(probeInw.GetZ());
@@ -966,11 +966,11 @@ Bool_t KMCDetector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int c
   }
   
   // do outward propagation
-  KMCProbe probeOut = probeInw;
+  R5Probe probeOut = probeInw;
   probeOut.ResetTrackingInfo();
   int outerReached = -1;
   for (int ilr=innerReached;ilr<fNLayers;ilr++) {
-    KMCLayer *lr = GetLayer(ilr);
+    R5Layer *lr = GetLayer(ilr);
     if (!probeOut.PropagateToR(lr->GetRadius(), fBFieldG, kOutward)) break;
     if (TMath::Abs(probeOut.GetSnp())>GetMaxSnp()) break; // too large snp
     Bool_t accZOK = lr->InZAcceptane(probeOut.GetZ());
@@ -997,7 +997,7 @@ Bool_t KMCDetector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int c
   probeInw.ResetTrackingInfo();  // used default (pion) mass for tracking
   if (outerReached<outerTracked) outerReached = outerTracked;
   for (int ilr=outerReached+1;ilr--;) {
-    KMCLayer *lr = GetLayer(ilr);
+    R5Layer *lr = GetLayer(ilr);
     if (!probeInw.PropagateToR(lr->GetRadius(), fBFieldG, kInward)) break;
     Bool_t accZOK = lr->InZAcceptane(probeInw.GetZ());
     if (!accZOK && !lr->IsDead()) {
@@ -1019,18 +1019,18 @@ Bool_t KMCDetector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int c
   */
   // calculate combined estimates
   for (int ilr=fNLayers;ilr--;) {
-    KMCLayer *lr = GetLayer(ilr);
+    R5Layer *lr = GetLayer(ilr);
     if (lr->IsDead()) continue;
     lr->CalcExtComb();
   }
   
 }
 
-Bool_t KMCDetector::ExtrapolateToR(KMCProbe* probe, Double_t r) const
+Bool_t R5Detector::ExtrapolateToR(R5Probe* probe, Double_t r) const
 {
   // go to radius correcting for materieals
   if (!probe) return kFALSE;
-  KMCProbe probeC = *probe;
+  R5Probe probeC = *probe;
   Double_t curR2 = probe->GetX()*probe->GetX()+probe->GetY()*probe->GetY();
   int dir = 0;
   int lrId0 = -1, lrIdTgt = -1; // 1st layer to cross and last layer in given direction
@@ -1038,7 +1038,7 @@ Bool_t KMCDetector::ExtrapolateToR(KMCProbe* probe, Double_t r) const
     dir = 1; // outward
     lrIdTgt = fNLayers;
     for (int ilr=0;ilr<fNLayers;ilr++) {
-      KMCLayer* lr = GetLayer(ilr);
+      R5Layer* lr = GetLayer(ilr);
       if (lr->GetRadius()*lr->GetRadius()>curR2) {
 	lrId0 = ilr;
 	break;
@@ -1049,7 +1049,7 @@ Bool_t KMCDetector::ExtrapolateToR(KMCProbe* probe, Double_t r) const
     dir = -1; // outward
     lrIdTgt = -1;
     for (int ilr=fNLayers;ilr--;) {
-      KMCLayer* lr = GetLayer(ilr);
+      R5Layer* lr = GetLayer(ilr);
       if (lr->GetRadius()*lr->GetRadius()<curR2) {
 	lrId0 = ilr;
 	break;
@@ -1059,7 +1059,7 @@ Bool_t KMCDetector::ExtrapolateToR(KMCProbe* probe, Double_t r) const
   // cross layers if needed
   if (lrId0!=-1) {
     for (int ilr=lrId0;ilr!=lrIdTgt;ilr+=dir) {
-      const KMCLayer* lr = GetLayer(ilr);
+      const R5Layer* lr = GetLayer(ilr);
       if (!PropagateToLayer(&probeC,lr,dir)) return kFALSE; // faile to propagate
       if (!probeC.CorrectForMeanMaterial(lr,dir)) return kFALSE;
     }
@@ -1070,14 +1070,14 @@ Bool_t KMCDetector::ExtrapolateToR(KMCProbe* probe, Double_t r) const
   return kTRUE;
 }
 
-Double_t KMCDetector::Chi2ToCluster(const KMCLayer* lr, const KMCProbe* trc, const KMCCluster* cl) const
+Double_t R5Detector::Chi2ToCluster(const R5Layer* lr, const R5Probe* trc, const R5Cluster* cl) const
 {
   Double_t meas[2] = {cl->GetY(),cl->GetZ()}; // ideal cluster coordinate
   Double_t measErr2[3] = {lr->GetPhiRes()*lr->GetPhiRes(),0,lr->GetZRes()*lr->GetZRes()};
   return trc->GetPredictedChi2(meas,measErr2);
 }
 
-void KMCDetector::Reset()
+void R5Detector::Reset()
 {
   for (int i=fNLayers;i--;) GetLayer(i)->Reset();
   fFirstActiveLayerTracked = fLastActiveLayerTracked = -1;
@@ -1089,13 +1089,13 @@ void KMCDetector::Reset()
 
 
 //________________________________________________________________________________
-Bool_t KMCDetector::SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, Double_t phi,
+Bool_t R5Detector::SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, Double_t phi,
 				     Double_t xv, Double_t yv, Double_t zv, int charge)
 {
   // analytic and fullMC of track with given kinematics.
   //
   // prepare kalman track
-  KMCProbe* probe = PrepareKalmanTrack(pt,eta,mass,charge,phi,xv,yv,zv);
+  R5Probe* probe = PrepareKalmanTrack(pt,eta,mass,charge,phi,xv,yv,zv);
 
   SolveSingleTrackAnalytically();
   if (!SolveSingleTrackViaKalman(mass,pt,eta)) return kFALSE;
@@ -1103,8 +1103,8 @@ Bool_t KMCDetector::SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, D
   // Store non-updated track errors of inward propagated seed >>>>>>>>
   int maxLr = fLastActiveITSLayer + offset;
   if (maxLr >= fLastActiveLayerTracked-1) maxLr = fLastActiveLayerTracked;
-  KMCProbe probeTmp = fProbeInMC0; // original probe at vertex
-  KMCLayer* lr = 0;
+  R5Probe probeTmp = fProbeInMC0; // original probe at vertex
+  R5Layer* lr = 0;
   for (Int_t j=1; j<=maxLr; j++) {
     lr = GetLayer(j);
     //    printf("Here0: %d\n",j);
@@ -1125,10 +1125,10 @@ Bool_t KMCDetector::SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, D
   // Store non-updated track errors of inward propagated seed <<<<<<<<
   //
   int nsm = sumArr ? sumArr->GetEntriesFast() : 0;
-  KMCLayer* vtx = GetLayer(0);
+  R5Layer* vtx = GetLayer(0);
   //
   for (int i=0;i<nsm;i++) {
-    KMCTrackSummary* tsm = (KMCTrackSummary*)sumArr->At(i);
+    R5TrackSummary* tsm = (R5TrackSummary*)sumArr->At(i);
     if (!tsm) continue;
     tsm->SetRefProbeInMC0( GetProbeTrack() ); // attach reference track (generated)
     tsm->SetAnProbe( vtx->GetAnProbe() ); // attach analitycal solution
@@ -1139,14 +1139,14 @@ Bool_t KMCDetector::SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, D
   for (int it=0;it<nMC;it++) {
     printf("ev: %d\n",it);
     SolveSingleTrackViaKalmanMC(offset);
-    KMCProbe* trc = vtx->GetWinnerMCTrack();
+    R5Probe* trc = vtx->GetWinnerMCTrack();
     vtx->GetMCTracks()->Print();
     if (progressP==1 || (progressP>0 &&  (it%progressP)==0)) {
       printf("%d%% done |",it*100/nMC); 
       sw.Stop(); sw.Print(); sw.Start(kFALSE);
     }
     for (int ism=nsm;ism--;) { // account the track in each of summaries
-      KMCTrackSummary* tsm = (KMCTrackSummary*)sumArr->At(ism);
+      R5TrackSummary* tsm = (R5TrackSummary*)sumArr->At(ism);
       if (!tsm) continue;
       tsm->AddUpdCalls(GetUpdCalls());
       tsm->AddTrack(trc); 
@@ -1161,7 +1161,7 @@ Bool_t KMCDetector::SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, D
 
 
 //________________________________________________________________________________
-KMCProbe* KMCDetector::KalmanSmooth(int actLr, int actMin,int actMax) const
+R5Probe* R5Detector::KalmanSmooth(int actLr, int actMin,int actMax) const
 {
   // estimate kalman smoothed track params at given active lr 
   // from fit at layers actMin:actMax (excluding actLr)
@@ -1172,7 +1172,7 @@ KMCProbe* KMCDetector::KalmanSmooth(int actLr, int actMin,int actMax) const
   int nlrfit = actMax-actMin;
   if (actLr>=actMin && actLr<=actMax) nlrfit-=1;
   if (nlrfit<2) {AliInfo("Need a least 2 active layers in the fit"); return 0;}
-  static KMCProbe iwd,owd;
+  static R5Probe iwd,owd;
   //
   // find phisical layer id's
   int pLr  = GetLayerID(actLr);
@@ -1186,7 +1186,7 @@ KMCProbe* KMCDetector::KalmanSmooth(int actLr, int actMin,int actMax) const
     iwd.ResetCovMat();
     iwd.GetHitsPatt() = 0;
     for (int i=pMax;i>=pLr;i--) {
-      KMCLayer* lr = GetLayer(i);
+      R5Layer* lr = GetLayer(i);
       //      printf("IWD %d\n",i);
       if (!lr->IsDead() && i!=pLr && i>=pMin) if (!UpdateTrack(&iwd,lr,&lr->fClCorr))  return 0;
       if (i!=pLr) {
@@ -1202,7 +1202,7 @@ KMCProbe* KMCDetector::KalmanSmooth(int actLr, int actMin,int actMax) const
     owd.ResetCovMat();
     owd.GetHitsPatt() = 0;
     for (int i=pMin;i<=pLr;i++) {
-      KMCLayer* lr = GetLayer(i);
+      R5Layer* lr = GetLayer(i);
       //      printf("OWD %d\n",i);
       if (!lr->IsDead() && i!=pLr && i<=pMax) if (!UpdateTrack(&owd,lr,&lr->fClCorr))  return 0;
       if (i!=pLr) {
@@ -1215,8 +1215,8 @@ KMCProbe* KMCDetector::KalmanSmooth(int actLr, int actMin,int actMax) const
   }
   //
   // was this extrapolation outside the fit range?
-  if (!useIwd) return (KMCProbe*)&owd; 
-  if (!useOwd) return (KMCProbe*)&iwd;
+  if (!useIwd) return (R5Probe*)&owd; 
+  if (!useOwd) return (R5Probe*)&iwd;
   //
   // weight both tracks
   if (!iwd.Propagate(owd.GetAlpha(),owd.GetX(),fBFieldG)) return 0;
@@ -1231,20 +1231,20 @@ KMCProbe* KMCDetector::KalmanSmooth(int actLr, int actMin,int actMax) const
   //  printf("->\n");
   //  iwd.Print("l");
 
-  return (KMCProbe*)&iwd;
+  return (R5Probe*)&iwd;
   //
 }
 
 //________________________________________________________________________________
-KMCProbe* KMCDetector::KalmanSmoothFull(int actLr, int actMin,int actMax) const
+R5Probe* R5Detector::KalmanSmoothFull(int actLr, int actMin,int actMax) const
 {
   // estimate kalman smoothed track params at given active lr 
   // from fit at layers actMin:actMax (excluding actLr)
   // SolveSingleTrackViaKalman must have been called before
   //
-  static TClonesArray prediction("KMCProbe",10);
-  static TClonesArray update("KMCProbe",10);
-  static KMCProbe res;
+  static TClonesArray prediction("R5Probe",10);
+  static TClonesArray update("R5Probe",10);
+  static R5Probe res;
   //
   if (actMin>actMax) swap(actMin,actMax);
   int nlrfit = actMax-actMin;
@@ -1266,7 +1266,7 @@ KMCProbe* KMCDetector::KalmanSmoothFull(int actLr, int actMin,int actMax) const
     int start = dir<0 ? pMax : pMin;
     res = GetLayer(start)->fTrCorr;
     res.ResetCovMat();
-    KMCLayer* lr = 0;
+    R5Layer* lr = 0;
     for (int i=(dir<0?pMax:pMin); i!=pLr; i+=dir) { // track till nearest layer to pLr
       lr = GetLayer(i);
       if (!lr->IsDead() && !(i<pMin ||i>pMax)) if (!UpdateTrack(&res,lr,&lr->fClCorr))  return 0; // update only with layers in fit range
@@ -1275,7 +1275,7 @@ KMCProbe* KMCDetector::KalmanSmoothFull(int actLr, int actMin,int actMax) const
     }
     if (!res.CorrectForMeanMaterial(lr,dir<0 ? kTRUE:kFALSE))   return 0; // correct for materials of this nearest layer
     if (!PropagateToLayer(&res,GetLayer(pLr), dir)) return 0; // propagate to test layer
-    return (KMCProbe*)&res;
+    return (R5Probe*)&res;
   }
   //
   // too bad, need to do real filtering
@@ -1284,23 +1284,23 @@ KMCProbe* KMCDetector::KalmanSmoothFull(int actLr, int actMin,int actMax) const
   int stop  = dirInt<0 ? pMin-1 : pMax+1;
   res = GetLayer(start)->fTrCorr;
   res.ResetCovMat();
-  KMCLayer* lr = 0;
+  R5Layer* lr = 0;
   int count = 0;
   for (int i=start; i!=stop; i+=dirInt) { // track in full range, storing updates and predictions
-    new(prediction[count]) KMCProbe(res);
+    new(prediction[count]) R5Probe(res);
     lr = GetLayer(i);
     if (!lr->IsDead() && i!=pLr) if (!UpdateTrack(&res,lr,&lr->fClCorr))  return 0; // update only with layers in fit range
-    new(update[count]) KMCProbe(res);
+    new(update[count]) R5Probe(res);
     if (!res.CorrectForMeanMaterial(lr,dir<0 ? kTRUE:kFALSE))   return 0; // correct for materials of this layer
     if (!PropagateToLayer(&res,GetLayer(i+dir),dir))            return 0; // propagate to next layer     
     count++;
   }
-  return (KMCProbe*)&res;
+  return (R5Probe*)&res;
   //
 }
 
 //________________________________________________________________________________
-Bool_t KMCDetector::SolveSingleTrackViaKalman(Double_t mass, Double_t pt, Double_t eta)
+Bool_t R5Detector::SolveSingleTrackViaKalman(Double_t mass, Double_t pt, Double_t eta)
 {
   // analytical estimate of tracking resolutions
   //  fProbeInMC0.SetUseLogTermMS(kTRUE);
@@ -1312,10 +1312,10 @@ Bool_t KMCDetector::SolveSingleTrackViaKalman(Double_t mass, Double_t pt, Double
     fDensFactorEta = 1./TMath::Sqrt( 1. + 1./fDensFactorEta/fDensFactorEta);
   }
   Double_t lambda = TMath::Pi()/2.0 - 2.0*TMath::ATan(TMath::Exp(-eta)); 
-  KMCProbe* probe = PrepareKalmanTrack(pt,lambda,mass,-1);
+  R5Probe* probe = PrepareKalmanTrack(pt,lambda,mass,-1);
   if (!probe) return kFALSE;
   //
-  KMCLayer *lr = 0;
+  R5Layer *lr = 0;
   //
   //
   // Start the track fitting --------------------------------------------------------
@@ -1323,15 +1323,15 @@ Bool_t KMCDetector::SolveSingleTrackViaKalman(Double_t mass, Double_t pt, Double
   // Back-propagate the covariance matrix along the track. 
   // Kalman loop over the layers
   //
-  KMCProbe* currTr = 0;
-  lr = (KMCLayer*)fLayers.At(fLastActiveLayerTracked);
+  R5Probe* currTr = 0;
+  lr = (R5Layer*)fLayers.At(fLastActiveLayerTracked);
   lr->fTrCorr = *probe;
   delete probe; // rethink...
   //
   for (Int_t j=fLastActiveLayerTracked; j--; ) {  // Layer loop
     //
-    KMCLayer *lrP = lr;
-    lr = (KMCLayer*)fLayers.At(j);
+    R5Layer *lrP = lr;
+    lr = (R5Layer*)fLayers.At(j);
     //
     lr->fTrCorr = lrP->fTrCorr;
     currTr = &lr->fTrCorr;
@@ -1339,7 +1339,7 @@ Bool_t KMCDetector::SolveSingleTrackViaKalman(Double_t mass, Double_t pt, Double
     //
     // if there was a measurement on prev layer, update the track
     if (!lrP->IsDead()) { // include measurement
-      KMCCluster cl(currTr->GetY(),currTr->GetZ(), currTr->GetX(), currTr->GetAlpha());
+      R5Cluster cl(currTr->GetY(),currTr->GetZ(), currTr->GetX(), currTr->GetAlpha());
       if (!UpdateTrack(currTr,lrP,&cl))  return kFALSE;
     }
     if (!currTr->CorrectForMeanMaterial(lrP,kTRUE)) return kFALSE; // correct for materials of this layer
@@ -1351,7 +1351,7 @@ Bool_t KMCDetector::SolveSingleTrackViaKalman(Double_t mass, Double_t pt, Double
 }
 
 //____________________________________________________________
-Bool_t KMCDetector::SolveSingleTrackViaKalmanMC(int offset)
+Bool_t R5Detector::SolveSingleTrackViaKalmanMC(int offset)
 {
   // MC estimate of tracking resolutions/effiencies. Requires that the SolveSingleTrackViaKalman
   // was called before, since it uses data filled by this method
@@ -1362,11 +1362,11 @@ Bool_t KMCDetector::SolveSingleTrackViaKalmanMC(int offset)
   // Clone it and propagate to target layer to generate hit positions affected by MS
   //
   fUpdCalls = 0.;
-  KMCProbe *currTrP=0,*currTr=0;
+  R5Probe *currTrP=0,*currTr=0;
   int maxLr = fLastActiveITSLayer + offset;
   if (maxLr >= fLastActiveLayerTracked-1) maxLr = fLastActiveLayerTracked;
   ResetMCTracks(maxLr);
-  KMCLayer* lr = (KMCLayer*)fLayers.At(maxLr);
+  R5Layer* lr = (R5Layer*)fLayers.At(maxLr);
   currTr = lr->AddMCTrack(&fProbeInMC0); // start with original track at vertex
   //
   if (!TransportKalmanTrackWithMS(currTr, maxLr)) return kFALSE; // transport it to outermost layer where full MC is done
@@ -1387,8 +1387,8 @@ Bool_t KMCDetector::SolveSingleTrackViaKalmanMC(int offset)
   //
   for (Int_t j=maxLr; j--; ) {  // Layer loop
     //
-    KMCLayer *lrP = lr;
-    lr = (KMCLayer*)fLayers.At(j);
+    R5Layer *lrP = lr;
+    lr = (R5Layer*)fLayers.At(j);
     int ntPrev = lrP->GetNMCTracks();
     //
     if (lrP->IsDead()) { // for passive layer just propagate the copy of all tracks of prev layer >>>
@@ -1414,7 +1414,7 @@ Bool_t KMCDetector::SolveSingleTrackViaKalmanMC(int offset)
     //
     // active layer under eff. study (ITS?): propagate copy of every track to MC cluster frame (to have them all in the same frame)
     // and calculate the limits of bg generation
-    KMCCluster* clMC = lrP->GetMCCluster();
+    R5Cluster* clMC = lrP->GetMCCluster();
     if (lrP->GetLayerEff()<gRandom->Rndm()) clMC->Kill(); // simulate inefficiency
     ResetSearchLimits();
     int nseeds = 0;
@@ -1458,13 +1458,13 @@ Bool_t KMCDetector::SolveSingleTrackViaKalmanMC(int offset)
   } // end loop over layers    
   //
   // do we use vertex constraint?
-  KMCLayer *vtx = GetLayer(0);
+  R5Layer *vtx = GetLayer(0);
   if (!vtx->IsDead() && vtx->IsITS()) {
     int ntr = vtx->GetNMCTracks();
     for (int itr=0;itr<ntr;itr++) {
       currTr = vtx->GetMCTrack(itr);
       if (currTr->IsKilled()) continue;
-      KMCCluster* clv = vtx->GetMCCluster();
+      R5Cluster* clv = vtx->GetMCCluster();
       Double_t meas[2] = {clv->GetY(),clv->GetZ()};
       Double_t measErr2[3] = {vtx->fPhiRes*vtx->fPhiRes,0,vtx->fZRes*vtx->fZRes};
       Double_t chi2v = currTr->GetPredictedChi2(meas,measErr2);
@@ -1482,7 +1482,7 @@ Bool_t KMCDetector::SolveSingleTrackViaKalmanMC(int offset)
 
 
 //____________________________________________________________________________
-Int_t KMCDetector::GenBgClusters(KMCLayer* lr)
+Int_t R5Detector::GenBgClusters(R5Layer* lr)
 {
   // Generate fake clusters in precalculated RPhi,Z range
   if (fNBgLimits<1) return 0; // limits were not set - no track was prolongated
@@ -1506,7 +1506,7 @@ Int_t KMCDetector::GenBgClusters(KMCLayer* lr)
   AliDebug(2,Form("Bg for Lr %s (r=%.2f) : Density %.2f on surface %.2e [%+.4f : %+.4f][%+.4f %+.4f]",
 		  lr->GetName(),lr->fR,HitDensity(lr->fR),surf,fBgYMin,fBgYMax,fBgZMin,fBgZMax));
   int nFakesGen = gRandom->Poisson( poissProb ); // preliminary number of extra clusters to test
-  KMCCluster *refCl = lr->GetMCCluster();
+  R5Cluster *refCl = lr->GetMCCluster();
   Double_t sig2y = lr->GetPhiRes()*lr->GetPhiRes();
   Double_t sig2z = lr->GetZRes()*lr->GetZRes();
   for (int ic=nFakesGen;ic--;) {
@@ -1525,7 +1525,7 @@ Int_t KMCDetector::GenBgClusters(KMCLayer* lr)
 }
 
 //____________________________________________________________________________
-void KMCDetector::UpdateSearchLimits(KMCProbe* probe, KMCLayer* lr)
+void R5Detector::UpdateSearchLimits(R5Probe* probe, R5Layer* lr)
 {
   // define the search window for track on layer (where the bg hist will be generated)
   static Double_t *currYMin = fBgYMinTr.GetArray();
@@ -1569,7 +1569,7 @@ void KMCDetector::UpdateSearchLimits(KMCProbe* probe, KMCLayer* lr)
 }
 
 //____________________________________________________________________________
-void KMCDetector::CheckTrackProlongations(KMCProbe *probe, KMCLayer* lr, KMCLayer* lrP)
+void R5Detector::CheckTrackProlongations(R5Probe *probe, R5Layer* lr, R5Layer* lrP)
 {
   // explore prolongation of probe from lrP to lr with all possible clusters of lrP
   // the probe is already brought to clusters frame
@@ -1584,7 +1584,7 @@ void KMCDetector::CheckTrackProlongations(KMCProbe *probe, KMCLayer* lr, KMCLaye
   //
   probe->SetInnerLrChecked(lrP->GetActiveID());
   for (int icl=-1;icl<nCl;icl++) {
-    KMCCluster* cl = icl<0 ? lrP->GetMCCluster() : lrP->GetBgCluster(icl);  // -1 is for true MC cluster
+    R5Cluster* cl = icl<0 ? lrP->GetMCCluster() : lrP->GetBgCluster(icl);  // -1 is for true MC cluster
     if (cl->IsKilled()) {
       if (AliLog::GetGlobalDebugLevel()>1) {printf("Skip cluster %d ",icl); cl->Print();}
       continue;
@@ -1612,7 +1612,7 @@ void KMCDetector::CheckTrackProlongations(KMCProbe *probe, KMCLayer* lr, KMCLaye
     if (chi2>fMaxChi2Cl) continue;
     // 
     // update track copy
-    KMCProbe* newTr = lr->AddMCTrack( probe );
+    R5Probe* newTr = lr->AddMCTrack( probe );
     fUpdCalls++;
     if (!newTr->Update(meas,measErr2)) {
       AliDebug(2,Form("Layer %s: Failed to update the track by measurement {%.3f,%3f} err {%.3e %.3e %.3e}",
@@ -1632,7 +1632,7 @@ void KMCDetector::CheckTrackProlongations(KMCProbe *probe, KMCLayer* lr, KMCLaye
 }
 
 //____________________________________________________________________________
-Bool_t KMCDetector::NeedToKill(KMCProbe* probe) const
+Bool_t R5Detector::NeedToKill(R5Probe* probe) const
 {
   // check if the seed at given layer (last one where update was tried) 
   // still has chances to be reconstructed
@@ -1667,7 +1667,7 @@ Bool_t KMCDetector::NeedToKill(KMCProbe* probe) const
 	int nMiss = fNActiveITSLayers - probe->GetInnerLayerChecked() - nITS; // layers already missed
 	chi2min = nMiss*probe->GetMissingHitPenalty();
       }
-      chi2min /= ((nITSMax<<1)-KMCProbe::kNDOF);
+      chi2min /= ((nITSMax<<1)-R5Probe::kNDOF);
       if (chi2min>fMaxNormChi2NDF) {
 	kill = kTRUE; 
 	break;
@@ -1703,14 +1703,14 @@ Bool_t KMCDetector::NeedToKill(KMCProbe* probe) const
 }
 
 //_____________________________________________________________________
-void KMCDetector::EliminateUnrelated()
+void R5Detector::EliminateUnrelated()
 {
   // kill useless tracks
-  KMCLayer* lr = GetLayer(0);
+  R5Layer* lr = GetLayer(0);
   int ntr = lr->GetNMCTracks();
   int nval = 0;
   for (int itr=0;itr<ntr;itr++) {
-    KMCProbe* probe = lr->GetMCTrack(itr);
+    R5Probe* probe = lr->GetMCTrack(itr);
     if (probe->IsKilled()) continue;
     if (probe->GetNITSHits()-probe->GetNFakeITSHits()<1) {probe->Kill(); continue;}
     nval++;
@@ -1727,7 +1727,7 @@ void KMCDetector::EliminateUnrelated()
 }
 
 //_____________________________________________________________________
-void KMCDetector::RequirePattern(UInt_t *patt, int groups)
+void R5Detector::RequirePattern(UInt_t *patt, int groups)
 {
   if (groups<1) {fPattITS.Set(0); return;}
   fPattITS.Set(groups);
@@ -1735,17 +1735,17 @@ void KMCDetector::RequirePattern(UInt_t *patt, int groups)
 }
 
 //_____________________________________________________________________
-void KMCDetector::CalcHardSearchLimits(Double_t dzv)
+void R5Detector::CalcHardSearchLimits(Double_t dzv)
 {
   //
   TArrayD zlims;
   zlims.Set(fNActiveITSLayers);
   for (int il0=0;il0<fNActiveITSLayers;il0++) {
-    KMCLayer* lr0 = GetActiveLayer(il0);
+    R5Layer* lr0 = GetActiveLayer(il0);
     Double_t angZTol = dzv/lr0->GetRadius();
     for (int il1=0;il1<fNActiveITSLayers;il1++) {
       if (il1==il0) continue;
-      KMCLayer* lr1 = GetActiveLayer(il1);
+      R5Layer* lr1 = GetActiveLayer(il1);
       Double_t ztol = angZTol*TMath::Abs(lr0->GetRadius() - lr1->GetRadius());
       if (ztol>zlims[il1]) zlims[il1] = ztol;
     }
@@ -1755,9 +1755,9 @@ void KMCDetector::CalcHardSearchLimits(Double_t dzv)
 }
 
 //_______________________________________________________
-Double_t KMCDetector::PropagateBack(KMCProbe* trc) 
+Double_t R5Detector::PropagateBack(R5Probe* trc) 
 {
-  static KMCProbe bwd;
+  static R5Probe bwd;
   bwd = *trc;
   bwd.ResetCovMat();
   static Double_t measErr2[3] = {0,0,0};
@@ -1765,11 +1765,11 @@ Double_t KMCDetector::PropagateBack(KMCProbe* trc)
   int icl = 0;
   Double_t chi2Tot = 0;
   for (int il=1;il<=fLastActiveITSLayer;il++) {
-    KMCLayer* lr = GetLayer(il);
+    R5Layer* lr = GetLayer(il);
     if (!PropagateToLayer(&bwd,lr,1)) return -1;
     int aID = lr->GetActiveID();
     if (aID>-1 && (icl=bwd.fClID[aID])>=-1) {
-      KMCCluster* clMC =  icl<0 ? lr->GetMCCluster() : lr->GetBgCluster(icl);
+      R5Cluster* clMC =  icl<0 ? lr->GetMCCluster() : lr->GetBgCluster(icl);
       if (!bwd.PropagateToCluster(clMC,fBFieldG)) return -1;
       meas[0] = clMC->GetY(); meas[1] = clMC->GetZ();
       measErr2[0] = lr->fPhiRes*lr->fPhiRes;

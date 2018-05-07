@@ -13,8 +13,8 @@
 // Current support and development: Ruben Shahoyan (Ruben.Shahoyan@cern.ch) 
 //-------------------------------------------------------------------------
 
-class KMCLayer;
-class KMCCluster;
+class R5Layer;
+class R5Cluster;
 class TH2F;
 class TH1F;
 class TGraph;
@@ -23,14 +23,14 @@ class TArrayI;
 //////////////////////////////////////////////////////////////////////////////////////////////
 
 //--------------------------------------------------------------------------------------------
-class KMCCluster : public TObject {
+class R5Cluster : public TObject {
  public:
   //
   enum {kBitKilled=BIT(14), kDummy = -999};
-  KMCCluster(Double_t y=0, Double_t z=0, Double_t x=0, Double_t phi=0, Int_t id=-1) : fY(y),fZ(z),fX(x),fPhi(phi),fID(id) {}
-  KMCCluster(KMCCluster &src);
-  KMCCluster& operator=(const KMCCluster& src);
-  virtual ~KMCCluster() {}
+  R5Cluster(Double_t y=0, Double_t z=0, Double_t x=0, Double_t phi=0, Int_t id=-1) : fY(y),fZ(z),fX(x),fPhi(phi),fID(id) {}
+  R5Cluster(R5Cluster &src);
+  R5Cluster& operator=(const R5Cluster& src);
+  virtual ~R5Cluster() {}
   void Reset() { SetID(kDummy); TObject::Clear();}
   //
   Double_t GetY()    const   {return fY;}
@@ -50,22 +50,22 @@ class KMCCluster : public TObject {
   Int_t   fID;
   void Set(Double_t y, Double_t z, Double_t x, Double_t phi, int id) {fY=y; fZ=z; fX=x; fPhi=phi; ResetBit(kBitKilled); fID = id;}
   virtual void Print(Option_t * = 0) const;
-  ClassDef(KMCCluster,1);
+  ClassDef(R5Cluster,1);
 };
 
 
 //--------------------------------------------------------------------------------------------
-class KMCProbe : public AliExternalTrackParam {
+class R5Probe : public AliExternalTrackParam {
  public:
   enum {kBitKilled=BIT(14)};
   enum {kNDOF=5};
   enum {kY2=0,kZ2=2,kSnp2=5,kTgl2=9,kPtI2=14};
   enum {kY,kZ,kSnp,kTgl,kPtI};
   //
-  KMCProbe();
-  KMCProbe(KMCProbe& src);
-  KMCProbe& operator=(const KMCProbe& src);
-  virtual ~KMCProbe() {}
+  R5Probe();
+  R5Probe(R5Probe& src);
+  R5Probe& operator=(const R5Probe& src);
+  virtual ~R5Probe() {}
   virtual   void   Print(Option_t* option = "") const;
   virtual   void   Reset();
   void      ResetCovMat();
@@ -74,7 +74,7 @@ class KMCProbe : public AliExternalTrackParam {
   void      Kill(Bool_t v=kTRUE)                          {SetBit(kBitKilled,v);}
   Bool_t    IsKilled()                              const {return TestBit(kBitKilled);}
   //
-  Bool_t    CorrectForMeanMaterial(const KMCLayer* lr, Bool_t inward=kTRUE);
+  Bool_t    CorrectForMeanMaterial(const R5Layer* lr, Bool_t inward=kTRUE);
   Bool_t    GetXatLabR(Double_t r,Double_t &x, Double_t bz, Int_t dir=0) const;
   Bool_t    PropagateToR(Double_t r, Double_t b, int dir=0);
   //
@@ -96,7 +96,7 @@ class KMCProbe : public AliExternalTrackParam {
   void      ResetHit(Int_t lr);
   Bool_t    IsHit(Int_t lr)                       const {return (lr<fgNLayers) ? IsWBit(fHits,lr)  : kFALSE;}
   Bool_t    IsHitFake(Int_t lr)                   const {return (lr<fgNLayers) ? IsWBit(fFakes,lr) : kFALSE;}
-  Bool_t    PropagateToCluster(KMCCluster* cl, Double_t b);
+  Bool_t    PropagateToCluster(R5Cluster* cl, Double_t b);
   // protected: 
   static void   SetWBit(UInt_t &patt,UInt_t bit)               {patt |= 0x1<<bit;}
   static void   ResetWBit(UInt_t &patt,UInt_t bit)             {patt &= ~(0x1<<bit);}
@@ -120,11 +120,11 @@ class KMCProbe : public AliExternalTrackParam {
   //
   static Int_t    fgNLayers;
   static Double_t fgMissingHitPenalty;
-  ClassDef(KMCProbe,1);  
+  ClassDef(R5Probe,1);  
 };
 
 //_______________________________________
-inline Double_t KMCProbe::GetNormChi2(Bool_t penalize) const
+inline Double_t R5Probe::GetNormChi2(Bool_t penalize) const
 {
   // normalized chi2, penilized for missing hits
   Double_t chi2 = fChi2;
@@ -136,7 +136,7 @@ inline Double_t KMCProbe::GetNormChi2(Bool_t penalize) const
 }
 
 //_______________________________________
-inline void KMCProbe::AddHit(Int_t lr, Double_t chi2, Int_t clID) {
+inline void R5Probe::AddHit(Int_t lr, Double_t chi2, Int_t clID) {
   // note: lr is active layer ID
   if (lr<0) return;
   fNHits++;
@@ -149,7 +149,7 @@ inline void KMCProbe::AddHit(Int_t lr, Double_t chi2, Int_t clID) {
 }
 
 //_______________________________________
-inline void KMCProbe::ResetHit(Int_t lr) {
+inline void R5Probe::ResetHit(Int_t lr) {
   // note: lr is active layer ID
   if (IsWBit(fHits,lr))  {fNHits--;     ResetWBit(fHits,lr);}
   if (IsWBit(fFakes,lr)) {fNHitsFake--; ResetWBit(fFakes,lr);}
@@ -158,7 +158,7 @@ inline void KMCProbe::ResetHit(Int_t lr) {
 //////////////////////////////////////////////////////////////////////////////////////////////
 
 //____________________________________________________________________________
-inline Bool_t KMCProbe::PropagateToCluster(KMCCluster* cl, Double_t b)
+inline Bool_t R5Probe::PropagateToCluster(R5Cluster* cl, Double_t b)
 {
   // propagate track to cluster frame
   if ( (TMath::Abs(cl->GetPhi() - GetAlpha())>1e-4 &&  !Rotate(cl->GetPhi())) ||
@@ -172,12 +172,12 @@ inline Bool_t KMCProbe::PropagateToCluster(KMCCluster* cl, Double_t b)
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 //--------------------------------------------------------------------------------------------
-class KMCLayer : public TNamed {
+class R5Layer : public TNamed {
 public:
   enum {kBitVertex=BIT(15)};
   enum {kPosY,kPosZ,kSigY2,kSigZY,kSigZ2,kNPointParam};
   enum {kDiagErr0,kDiagErr1,kDiagTheta};
-  KMCLayer(char *name);
+  R5Layer(char *name);
   Double_t GetRadius()     const {return fR;}
   Double_t GetZMax()       const {return fZMax;}  
   Double_t GetRadL()       const {return fx2X0;}
@@ -195,7 +195,7 @@ public:
   //
   Bool_t InZAcceptane(Double_t z) const {return TMath::Abs(z)<fZMax;}
 
-  KMCCluster* GetMCCluster()        {return (KMCCluster*)&fClMC;}
+  R5Cluster* GetMCCluster()        {return (R5Cluster*)&fClMC;}
   //
   void Reset() {
     if (IsActive()) {fClMC.Reset();}
@@ -205,7 +205,7 @@ public:
     fDiagErr[0]=fDiagErr[1]=fDiagErr[2] = -1.;
   }
   //
-  void SetExtInward(const KMCProbe* probe) {
+  void SetExtInward(const R5Probe* probe) {
     fExtInward[kPosY]  = probe->GetY();
     fExtInward[kPosZ]  = probe->GetZ();
     fExtInward[kSigY2] = probe->GetSigmaY2();
@@ -213,7 +213,7 @@ public:
     fExtInward[kSigZ2] = probe->GetSigmaZ2();
   }
 
-  void SetExtOutward(const KMCProbe* probe) {
+  void SetExtOutward(const R5Probe* probe) {
     fExtOutward[kPosY]  = probe->GetY();
     fExtOutward[kPosZ]  = probe->GetZ();
     fExtOutward[kSigY2] = probe->GetSigmaY2();
@@ -241,21 +241,21 @@ public:
   Bool_t  fIsDead;
   Int_t   fActiveID;   // active layer id
   //
-  KMCCluster   fClMC;       // MC cluster (from MS scattered track)
+  R5Cluster   fClMC;       // MC cluster (from MS scattered track)
   //
-  ClassDef(KMCLayer,1);
+  ClassDef(R5Layer,1);
 };
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 //--------------------------------------------------------------------------------------------
-class KMCDetector : public TNamed {
+class R5Detector : public TNamed {
  public:
   enum {kUtilHisto=BIT(14)};
   enum {kInward = -1, kOutward = 1};
-  KMCDetector();
-  KMCDetector(char *name,char *title);
-  virtual ~KMCDetector();
+  R5Detector();
+  R5Detector(char *name,char *title);
+  virtual ~R5Detector();
 
   // main method to check single track
   Bool_t ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x=0.,Double_t y=0., Double_t z=0.);
@@ -298,15 +298,15 @@ class KMCDetector : public TNamed {
   Double_t OneEventHitDensity    ( Double_t multiplicity, Double_t radius ) const   ;
   void     CalcDensFactorEta(Double_t eta);
   
-  void   ApplyMS(KMCProbe* trc,  Double_t x2x0) const;
+  void   ApplyMS(R5Probe* trc,  Double_t x2x0) const;
 
   // method to extend AliExternalTrackParam functionality
   Bool_t    IsZero(Double_t val, Double_t tol=1e-9) const {return TMath::Abs(val)<tol;}
   TList*    GetLayers()                   const {return (TList*)&fLayers;}
-  KMCLayer* GetLayer(Int_t i)          const {return (KMCLayer*) fLayers.At(i);}
-  KMCLayer* GetActiveLayer(Int_t actID)    const {int pid=GetLayerID(actID); return pid<0 ? 0:GetLayer(pid);}
-  KMCLayer* GetLayer(const char* name) const {return (KMCLayer*) fLayers.FindObject(name);}
-  KMCProbe* GetProbeTrack()       const {return (KMCProbe*)&fProbeInMC0;}
+  R5Layer* GetLayer(Int_t i)          const {return (R5Layer*) fLayers.At(i);}
+  R5Layer* GetActiveLayer(Int_t actID)    const {int pid=GetLayerID(actID); return pid<0 ? 0:GetLayer(pid);}
+  R5Layer* GetLayer(const char* name) const {return (R5Layer*) fLayers.FindObject(name);}
+  R5Probe* GetProbeTrack()       const {return (R5Probe*)&fProbeInMC0;}
   void      ClassifyLayers();
   void      Reset();
   void      SetMaxSnp(Double_t v) { fMaxSnp = v; }
@@ -321,18 +321,18 @@ class KMCDetector : public TNamed {
 
 
   void PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi=0,Double_t x=0.,Double_t y=0.,Double_t z=0.);
-  int TransportKalmanTrackWithMS(KMCProbe *probTr, Bool_t applyMatCorr=kTRUE);
-  Bool_t PropagateToLayer(KMCProbe* trc, const KMCLayer* lr, int dir) const;
-  Bool_t ExtrapolateToR(KMCProbe* probe, Double_t r) const;
-  Bool_t UpdateTrack(KMCProbe* trc, KMCLayer* lr, KMCCluster* cl) const;
-  Double_t  Chi2ToCluster(const KMCLayer* lr, const KMCProbe* trc, const KMCCluster* cl) const;
+  int TransportKalmanTrackWithMS(R5Probe *probTr, Bool_t applyMatCorr=kTRUE);
+  Bool_t PropagateToLayer(R5Probe* trc, const R5Layer* lr, int dir) const;
+  Bool_t ExtrapolateToR(R5Probe* probe, Double_t r) const;
+  Bool_t UpdateTrack(R5Probe* trc, R5Layer* lr, R5Cluster* cl) const;
+  Double_t  Chi2ToCluster(const R5Layer* lr, const R5Probe* trc, const R5Cluster* cl) const;
   
   /*  
   Bool_t SolveSingleTrackViaKalman(Double_t mass, Double_t pt, Double_t eta);
   Bool_t SolveSingleTrackViaKalmanMC(int offset=6);
   Bool_t SolveSingleTrack(Double_t mass, Double_t pt, Double_t eta, TObjArray* sumArr=0, int nMC=10000,int offset=6);
-  KMCProbe* KalmanSmooth(int actLr, int actMin,int actMax) const;
-  KMCProbe* KalmanSmoothFull(int actLr, int actMin,int actMax) const; //TBD
+  R5Probe* KalmanSmooth(int actLr, int actMin,int actMax) const;
+  R5Probe* KalmanSmoothFull(int actLr, int actMin,int actMax) const; //TBD
   void   EliminateUnrelated();
   //
 
@@ -340,12 +340,12 @@ class KMCDetector : public TNamed {
   //
   Bool_t   GetUseBackground()               const {return fUseBackground;}
   void     SetUseBackground(Bool_t v=kTRUE)       {fUseBackground = v;}
-  void     CheckTrackProlongations(KMCProbe *probe, KMCLayer* lr, KMCLayer* lrP);
+  void     CheckTrackProlongations(R5Probe *probe, R5Layer* lr, R5Layer* lrP);
   void     ResetSearchLimits() {fBgYMin=fBgZMin=1e6; fBgYMax=fBgZMax=-1e6; fNBgLimits=0;}
-  void     UpdateSearchLimits(KMCProbe* probe, KMCLayer* lr);
-  Int_t    GenBgClusters(KMCLayer* lr);
-  Bool_t   NeedToKill(KMCProbe* probe) const;
-  Double_t PropagateBack(KMCProbe* trc);
+  void     UpdateSearchLimits(R5Probe* probe, R5Layer* lr);
+  Int_t    GenBgClusters(R5Layer* lr);
+  Bool_t   NeedToKill(R5Probe* probe) const;
+  Double_t PropagateBack(R5Probe* trc);
   //
   // definition of reconstructable track
   void     RequirePattern(UInt_t *patt, int groups);
@@ -383,11 +383,11 @@ class KMCDetector : public TNamed {
   Int_t    fMinHits;  // min ITS hits in track to accept
   Double_t fMaxSnp;      // max allowe snp
   //
-  KMCProbe fProbeInMC0; // initially provided probe
-  KMCProbe fProbeOutMC; // probe propagated to outer radius with material effects
+  R5Probe fProbeInMC0; // initially provided probe
+  R5Probe fProbeOutMC; // probe propagated to outer radius with material effects
   //
   static Double_t fgVtxConstraint[2];  // if both positive, the vertex is used as constraint (accounted in chi2 but not in update)
-  ClassDef(KMCDetector,1);
+  ClassDef(R5Detector,1);
 };
 
 

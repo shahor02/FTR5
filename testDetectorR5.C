@@ -7,7 +7,7 @@
 void testDetectorR5() {
 
 
-  KMCDetector its("ALICE","ITS");
+  R5Detector its("ALICE","ITS");
   its.SetBField(1.);
   // new ideal Pixel properties?
   Double_t x0IB     = 0.001;
