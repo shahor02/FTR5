@@ -319,7 +319,9 @@ class R5Detector : public TNamed {
   Double_t GetMaxChi2Cl()                   const {return fMaxChi2Cl;}
   Double_t GetMaxNormChi2NDF()              const {return fMaxNormChi2NDF;}
   Int_t    GetMinHits()                     const {return fMinHits;}
-
+  void     SetPropagateToOrigin(Bool_t v)        {fPropagateToOrigin = v;}
+  Bool_t   GetPropagateToOrigin()           const {return fPropagateToOrigin;}
+  
 
   void PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi=0,Double_t x=0.,Double_t y=0.,Double_t z=0.);
   int TransportKalmanTrackWithMS(R5Probe *probTr, Bool_t applyMatCorr=kTRUE);
@@ -383,6 +385,7 @@ class R5Detector : public TNamed {
   Double_t fMaxNormChi2NDF;// max chi2/NDF to accept
   Int_t    fMinHits;  // min ITS hits in track to accept
   Double_t fMaxSnp;      // max allowe snp
+  Bool_t   fPropagateToOrigin; // propagate all tracks to DCA to origin
   //
   R5Probe fProbeInMC0; // initially provided probe
   R5Probe fProbeOutMC; // probe propagated to outer radius with material effects

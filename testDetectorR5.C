@@ -22,6 +22,9 @@ void testDetectorR5(int ntracks=1) {
 R5Detector* CreateDetector()
 {
   R5Detector* det = new R5Detector("ALICE","ITS");
+
+  det->SetPropagateToOrigin(kTRUE);
+  
   det->SetBField(1.);
   // new ideal Pixel properties?
   Double_t x0IB     = 0.001;

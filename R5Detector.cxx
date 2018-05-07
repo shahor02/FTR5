@@ -18,7 +18,8 @@
 #include <TH2.h>
 #include <TH1.h>
 #include <TArrayI.h>
-#include <AliLog.h>
+#include "AliLog.h"
+#include "AliESDVertex.h"
 
 /***********************************************************
 
@@ -493,7 +494,8 @@ TNamed("test_detector","detector"),
   fMaxChi2Cl(30.),
   fMaxNormChi2NDF(7.),
   fMinHits(4),
-  fMaxSnp(0.8)
+  fMaxSnp(0.8),
+  fPropagateToOrigin(kFALSE)
 {
   //
   // default constructor
@@ -992,6 +994,18 @@ Bool_t R5Detector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int ch
     //    printf("ProbeOut@%d: ",ilr); probeOut.Print("t");
   }
   //
+  if (fProbeInward.GetNHits()<GetMinHits()) return kFALSE;
+  if (fPropagateToOrigin) {
+    AliESDVertex vtx0(0.,0.,0.,0);
+    AliExternalTrackParam trTmp = fProbeInward;
+    if (trTmp.PropagateToDCA(&vtx0,fBFieldG,999.)) {
+      double rDCA = TMath::Sqrt(trTmp.GetX()*trTmp.GetX()+trTmp.GetY()*trTmp.GetY());
+      if (!ExtrapolateToR(&fProbeInward,rDCA)) return kFALSE;
+      if (!fProbeInward.PropagateToDCA(&vtx0,fBFieldG,999.)) return kFALSE;
+      //      double rCurr = TMath::Sqrt(fProbeInward.GetX()*fProbeInward.GetX() + fProbeInward.GetY()*fProbeInward.GetY());      
+    }
+  }
+
   /*
   // do final inward propagation with eventual fake clusters attachment
   probeInw = fProbeOutMC;
