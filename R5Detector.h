@@ -7,7 +7,10 @@
 #include <TList.h>
 #include <TClonesArray.h>
 #include <TArrayD.h>
+#include <TBits.h>
 #include "AliExternalTrackParam.h"
+#include "AliKalmanTrack.h"
+#include "AliESDtrack.h"
 
 //-------------------------------------------------------------------------
 // Current support and development: Ruben Shahoyan (Ruben.Shahoyan@cern.ch) 
@@ -19,6 +22,7 @@ class TH2F;
 class TH1F;
 class TGraph;
 class TArrayI;
+class AliCluster;
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -55,7 +59,7 @@ class R5Cluster : public TObject {
 
 
 //--------------------------------------------------------------------------------------------
-class R5Probe : public AliExternalTrackParam {
+class R5Probe : public AliKalmanTrack {
  public:
   enum {kBitKilled=BIT(14)};
   enum {kNDOF=5};
@@ -78,16 +82,11 @@ class R5Probe : public AliExternalTrackParam {
   Bool_t    GetXatLabR(Double_t r,Double_t &x, Double_t bz, Int_t dir=0) const;
   Bool_t    PropagateToR(Double_t r, Double_t b, int dir=0);
   //
-  void      SetMass(Double_t m=0.14)                      {fMass = m;}
-  Double_t  GetMass()                             const {return fMass;}
-  Double_t  GetChi2()                             const {return fChi2;}
-  void      SetChi2(Double_t chi2)                        {fChi2 = chi2;}
-  void      AddChi2(Double_t chi2)                        {fChi2 += chi2;}
   void      SetInnerChecked(int n)                      {fInnerChecked = n;}
   void      SetOuterChecked(int n)                      {fOuterChecked = n;}
   int       GetInnerChecked()                     const {return fInnerChecked;}
   int       GetOuterChecked()                     const {return fOuterChecked;}
-  UShort_t  GetNHits()                            const {return fNHits;}
+  UShort_t  GetNHits()                            const {return GetNumberOfClusters();}
   UShort_t  GetNFakeHits()                        const {return fNHitsFake;}
   UInt_t&   GetHitsPatt()                               {return fHits;}
   UInt_t&   GetFakesPatt()                              {return fFakes;}
@@ -107,13 +106,17 @@ class R5Probe : public AliExternalTrackParam {
   static Double_t GetMissingHitPenalty()                        {return fgMissingHitPenalty;}
   static void     SetMissingHitPenalty(Double_t p=2.)             {fgMissingHitPenalty = p;}
   //
+  virtual Double_t GetPIDsignal() const { return 0; }
+  
+ private:
+  // dummy methods
+  virtual Double_t GetPredictedChi2(const AliCluster *c) const {return -1;}
+  virtual Bool_t PropagateTo(Double_t xr, Double_t x0, Double_t rho) {return kFALSE;}
+  virtual Bool_t Update(const AliCluster* c, Double_t chi2, Int_t index) {return kFALSE;}
+  
  public:
-  enum {kMaxITSLr=12};
-  Double_t fMass;   // mass
-  Double_t fChi2;   // total chi2
   UInt_t  fHits;   // pattern on hits (max 32!)
   UInt_t  fFakes;  // pattern of fakes among hits
-  Short_t fNHits;    // total hits
   Short_t fNHitsFake; // number of fake ITS hits
   Short_t fInnerChecked; // innermost layer checked
   Short_t fOuterChecked; // innermost layer checked
@@ -127,20 +130,21 @@ class R5Probe : public AliExternalTrackParam {
 inline Double_t R5Probe::GetNormChi2(Bool_t penalize) const
 {
   // normalized chi2, penilized for missing hits
-  Double_t chi2 = fChi2;
+  Double_t chi2 = GetChi2();
+  int nh = GetNumberOfClusters();
   if (penalize) {
-    int nMiss = (fOuterChecked-fInnerChecked+1) - fNHits;
-    chi2 = fChi2 + nMiss*fgMissingHitPenalty;
+    int nMiss = (fOuterChecked-fInnerChecked+1) - nh;
+    chi2 += nMiss*fgMissingHitPenalty;
   }
-  return chi2/( (fNHits<<1)-kNDOF);
+  return chi2/( (nh<<1)-kNDOF);
 }
 
 //_______________________________________
 inline void R5Probe::AddHit(Int_t lr, Double_t chi2, Int_t clID) {
   // note: lr is active layer ID
   if (lr<0) return;
-  fNHits++;
-  fChi2 += chi2;
+  SetNumberOfClusters( GetNumberOfClusters() + 1);
+  SetChi2( GetChi2() + chi2 );
   SetWBit(fHits,lr); 
   if (clID>-1) {
     SetWBit(fFakes,lr);
@@ -151,7 +155,7 @@ inline void R5Probe::AddHit(Int_t lr, Double_t chi2, Int_t clID) {
 //_______________________________________
 inline void R5Probe::ResetHit(Int_t lr) {
   // note: lr is active layer ID
-  if (IsWBit(fHits,lr))  {fNHits--;     ResetWBit(fHits,lr);}
+  if (IsWBit(fHits,lr))  {SetNumberOfClusters( GetNumberOfClusters() - 1); ResetWBit(fHits,lr);}
   if (IsWBit(fFakes,lr)) {fNHitsFake--; ResetWBit(fFakes,lr);}
 }
 
@@ -162,7 +166,7 @@ inline Bool_t R5Probe::PropagateToCluster(R5Cluster* cl, Double_t b)
 {
   // propagate track to cluster frame
   if ( (TMath::Abs(cl->GetPhi() - GetAlpha())>1e-4 &&  !Rotate(cl->GetPhi())) ||
-       (TMath::Abs(cl->GetX() - GetX())>1e-4 && !PropagateTo(cl->GetX(),b)) ) {
+       (TMath::Abs(cl->GetX() - GetX())>1e-4 && !AliExternalTrackParam::PropagateTo(cl->GetX(),b)) ) {
     AliDebugF(2,"Failed to propagate track to cluster at phi=%.3f X=%.3f",cl->GetPhi(),cl->GetX());
     if (AliLog::GetGlobalDebugLevel()>1) Print();
     return kFALSE;
@@ -308,6 +312,7 @@ class R5Detector : public TNamed {
   R5Layer* GetLayer(const char* name) const {return (R5Layer*) fLayers.FindObject(name);}
   R5Probe* GetProbeGen()         const {return (R5Probe*)&fProbeInMC0;}
   R5Probe* GetProbeTrackInward() const {return (R5Probe*)&fProbeInward;}
+  const AliESDtrack* GetProbeTrackInwardAsESDTrack();
   void      ClassifyLayers();
   void      Reset();
   void      SetMaxSnp(Double_t v) { fMaxSnp = v; }
@@ -390,6 +395,7 @@ class R5Detector : public TNamed {
   R5Probe fProbeInMC0; // initially provided probe
   R5Probe fProbeOutMC; // probe propagated to outer radius with material effects
   R5Probe fProbeInward; // probe after innermost update
+  AliESDtrack fESDtrack; // place-holder to transfer reconstructed track as ESDtrack
   //
   static Double_t fgVtxConstraint[2];  // if both positive, the vertex is used as constraint (accounted in chi2 but not in update)
   ClassDef(R5Detector,1);

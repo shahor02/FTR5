@@ -49,11 +49,8 @@ Double_t R5Probe::fgMissingHitPenalty = 2.;
 
 //__________________________________________________________________________
 R5Probe::R5Probe() :
-  fMass(0.14),
-  fChi2(0),
   fHits(0),
   fFakes(0),
-  fNHits(0),
   fNHitsFake(0),
   fInnerChecked(-1),
   fOuterChecked(-1)
@@ -64,12 +61,9 @@ R5Probe::R5Probe() :
 R5Probe& R5Probe::operator=(const R5Probe& src) 
 {
   if (this!=&src) {
-    AliExternalTrackParam::operator=(src);
-    fMass = src.fMass;
-    fChi2 = src.fChi2;
+    AliKalmanTrack::operator=(src);
     fHits = src.fHits;
     fFakes = src.fFakes;
-    fNHits = src.fNHits;
     fNHitsFake = src.fNHitsFake;
     fInnerChecked     = src.fInnerChecked;
     fOuterChecked     = src.fOuterChecked;
@@ -79,12 +73,9 @@ R5Probe& R5Probe::operator=(const R5Probe& src)
 
 //__________________________________________________________________________
 R5Probe::R5Probe(R5Probe& src) 
-  : AliExternalTrackParam(src),
-    fMass(src.fMass),
-    fChi2(src.fChi2),
+  : AliKalmanTrack(src),
     fHits(src.fHits),
     fFakes(src.fFakes),
-    fNHits(src.fNHits),    
     fNHitsFake(src.fNHitsFake),
     fInnerChecked(src.fInnerChecked),
     fOuterChecked(src.fOuterChecked)
@@ -94,22 +85,23 @@ R5Probe::R5Probe(R5Probe& src)
 //__________________________________________________________________________
 void R5Probe::Reset()
 {
-  fMass = 0.14;
-  fChi2 = 0;
+  SetMass(PionMass);
+  SetChi2(0);
   fHits = fFakes = 0;
-  fNHits = fNHitsFake = 0;
+  fNHitsFake = 0;
+  SetNumberOfClusters(0);
   fInnerChecked = fOuterChecked = -1;
-  AliExternalTrackParam::Reset();
+  AliKalmanTrack::Reset();
 }
 
 //__________________________________________________________________________
 void R5Probe::ResetTrackingInfo()
 {
-  fMass = 0.14;
-  fChi2 = 0;
+  SetMass(PionMass);
+  SetChi2(0);
   fHits = fFakes = 0;
-  fNHits = fNHitsFake = 0;
-  fInnerChecked = fOuterChecked = -1;
+  fNHitsFake = 0;
+  SetNumberOfClusters(0);
   ResetCovMat();
   TObject::Clear(); // to clean bits?
 }
@@ -135,7 +127,8 @@ void R5Probe::ResetCovMat()
 void R5Probe::Print(Option_t* option) const
 {
   printf("M=%.3f Chi2=%7.2f (Norm:%6.2f) Checked: %d-%d, Hits: Total:%d Fakes:%d | Y:%+8.4f Z: %+8.4f |", 
-	 fMass,fChi2,GetNormChi2(kTRUE),fInnerChecked,fOuterChecked, fNHits,fNHitsFake, GetY(),GetZ());
+	 GetMass(),GetChi2(),GetNormChi2(kTRUE),fInnerChecked,fOuterChecked, GetNumberOfClusters(),
+	 fNHitsFake, GetY(),GetZ());
   for (int i=0;i<fgNLayers;i++) {
     if (!IsHit(i)) printf(".");
     else printf("%c",IsHitFake(i) ? '-':'+');
@@ -302,7 +295,7 @@ Bool_t R5Probe::PropagateToR(Double_t r, Double_t b, int dir)
       return kFALSE;
     }
     
-    if (!PropagateTo(xR, b)) {
+    if (!AliExternalTrackParam::PropagateTo(xR, b)) {
       if (AliLog::GetGlobalDebugLevel()>2) {
 	printf("Failed to propagate to X=%f for R=%f\n",xR,r); 
 	Print("l"); 
@@ -904,10 +897,10 @@ Bool_t R5Detector::UpdateTrack(R5Probe* trc, R5Layer* lr, R5Cluster* cl) const
   //
   
   //
-  Double_t chi2 = trc->GetPredictedChi2(meas,measErr2);
+  Double_t chi2 = trc->AliExternalTrackParam::GetPredictedChi2(meas,measErr2);
   //  if (chi2>fMaxChi2Cl) return kTRUE; // chi2 is too large
   //  
-  if (!trc->Update(meas,measErr2)) {
+  if (!trc->AliExternalTrackParam::Update(meas,measErr2)) {
     AliDebug(2,Form("layer %s: Failed to update the track by measurement {%.3f,%3f} err {%.3e %.3e %.3e}",
 		    lr->GetName(),meas[0],meas[1], measErr2[0],measErr2[1],measErr2[2]));
     if (AliLog::GetGlobalDebugLevel()>1) trc->Print("l");
@@ -1043,17 +1036,20 @@ Bool_t R5Detector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int ch
 
 Bool_t R5Detector::ExtrapolateToR(R5Probe* probe, Double_t r) const
 {
-  // go to radius correcting for materieals
+  // go to radius correcting for materials
   if (!probe) return kFALSE;
   R5Probe probeC = *probe;
   Double_t curR2 = probe->GetX()*probe->GetX()+probe->GetY()*probe->GetY();
   int dir = 0;
   int lrId0 = -1, lrIdTgt = -1; // 1st layer to cross and last layer in given direction
-  if (curR2 < r*r) {
+  double df2 = curR2 - r*r;
+  if (TMath::Abs(df2)<1e-4) return kTRUE;
+  if (df2<0.) {
     dir = 1; // outward
     lrIdTgt = fNLayers;
     for (int ilr=0;ilr<fNLayers;ilr++) {
       R5Layer* lr = GetLayer(ilr);
+      if (lr->IsVertex()) continue;
       if (lr->GetRadius()*lr->GetRadius()>curR2) {
 	lrId0 = ilr;
 	break;
@@ -1061,10 +1057,11 @@ Bool_t R5Detector::ExtrapolateToR(R5Probe* probe, Double_t r) const
     }
   }
   else {
-    dir = -1; // outward
+    dir = -1; // inward
     lrIdTgt = -1;
     for (int ilr=fNLayers;ilr--;) {
       R5Layer* lr = GetLayer(ilr);
+      if (lr->IsVertex()) continue;
       if (lr->GetRadius()*lr->GetRadius()<curR2) {
 	lrId0 = ilr;
 	break;
@@ -1075,7 +1072,7 @@ Bool_t R5Detector::ExtrapolateToR(R5Probe* probe, Double_t r) const
   if (lrId0!=-1) {
     for (int ilr=lrId0;ilr!=lrIdTgt;ilr+=dir) {
       const R5Layer* lr = GetLayer(ilr);
-      if (!PropagateToLayer(&probeC,lr,dir)) return kFALSE; // faile to propagate
+      if (!PropagateToLayer(&probeC,lr,dir)) return kFALSE; // failed to propagate
       if (!probeC.CorrectForMeanMaterial(lr,dir)) return kFALSE;
     }
   }
@@ -1089,13 +1086,36 @@ Double_t R5Detector::Chi2ToCluster(const R5Layer* lr, const R5Probe* trc, const 
 {
   Double_t meas[2] = {cl->GetY(),cl->GetZ()}; // ideal cluster coordinate
   Double_t measErr2[3] = {lr->GetPhiRes()*lr->GetPhiRes(),0,lr->GetZRes()*lr->GetZRes()};
-  return trc->GetPredictedChi2(meas,measErr2);
+  return trc->AliExternalTrackParam::GetPredictedChi2(meas,measErr2);
 }
 
 void R5Detector::Reset()
 {
   for (int i=fNLayers;i--;) GetLayer(i)->Reset();
   fFirstActiveLayerTracked = fLastActiveLayerTracked = -1;
+}
+
+const AliESDtrack* R5Detector::GetProbeTrackInwardAsESDTrack()
+{
+  // create ESD track
+  fESDtrack.ResetStatus( 0xffffffffffffffffUL );
+  fESDtrack.UpdateTrackParams(&fProbeInward, AliESDtrack::kITSin);
+  fESDtrack.SetStatus(AliESDtrack::kITSout|AliESDtrack::kITSrefit);
+  TBits clMap,fakeMap;
+  UChar_t itsPattShort = 0;
+  for (int i=0;i<fNActiveLayers;i++) {
+    if ( fProbeInward.IsHit(i) ) {
+      clMap.SetBitNumber(i);
+      if (i<int(sizeof(itsPattShort))) itsPattShort |= (0x1<<i);
+    }
+    if ( fProbeInward.IsHitFake(i) ) {
+      fakeMap.SetBitNumber(i);
+    }
+  }
+  fESDtrack.SetITSClusterMap(itsPattShort);
+  fESDtrack.SetTPCClusterMap(clMap);
+  fESDtrack.SetTPCSharedMap(fakeMap);
+  return &fESDtrack;
 }
 
 ///LAST
@@ -1240,7 +1260,7 @@ R5Probe* R5Detector::KalmanSmooth(int actLr, int actMin,int actMax) const
   //  printf("Weighting\n");
   //  owd.Print("l");
   //  iwd.Print("l");
-  if (!iwd.Update(meas,measErr2)) return 0;
+  if (!iwd.AliExternalTrackParam::Update(meas,measErr2)) return 0;
   iwd.GetHitsPatt() |= owd.GetHitsPatt();
 
   //  printf("->\n");
@@ -1482,7 +1502,7 @@ Bool_t R5Detector::SolveSingleTrackViaKalmanMC(int offset)
       R5Cluster* clv = vtx->GetMCCluster();
       Double_t meas[2] = {clv->GetY(),clv->GetZ()};
       Double_t measErr2[3] = {vtx->fPhiRes*vtx->fPhiRes,0,vtx->fZRes*vtx->fZRes};
-      Double_t chi2v = currTr->GetPredictedChi2(meas,measErr2);
+      Double_t chi2v = currTr->AliExternalTrackParam::GetPredictedChi2(meas,measErr2);
       currTr->AddHit(vtx->GetActiveID(), chi2v, -1);
       currTr->SetInnerLrChecked(vtx->GetActiveID());
       if (NeedToKill(currTr)) currTr->Kill();
@@ -1610,7 +1630,7 @@ void R5Detector::CheckTrackProlongations(R5Probe *probe, R5Layer* lr, R5Layer* l
     if (AliLog::GetGlobalDebugLevel()>0) {
       if (icl==-1 && probe->GetNFakeITSHits()==0) {
 	meas[0] = y; meas[1] = z;
-	Double_t chi2a = probe->GetPredictedChi2(meas,measErr2);
+	Double_t chi2a = probe->AliExternalTrackParam::GetPredictedChi2(meas,measErr2);
 	if (chi2a>fMaxChi2Cl || (y<yMin || y>yMax) || (z<zMin || z>zMax)) {
 	  probe->Print();
 	  printf("Loosing good point (y:%+8.4f z:%+8.4f) on lr %s: chi2: %.2f  | dy:%+8.4f dz:%+8.4f [%+.4f:%+.4f]  [%+.4f:%+.4f] |x: %.2f %.2f | phi: %.2f %.2f\n",
@@ -1621,7 +1641,7 @@ void R5Detector::CheckTrackProlongations(R5Probe *probe, R5Layer* lr, R5Layer* l
     if (y<yMin || y>yMax) continue; // preliminary check on Y
     if (z<zMin || z>zMax) continue; // preliminary check on Z
     meas[0] = y; meas[1] = z;
-    Double_t chi2 = probe->GetPredictedChi2(meas,measErr2);
+    Double_t chi2 = probe->AliExternalTrackParam::GetPredictedChi2(meas,measErr2);
     if (fHMCLrChi2 && probe->GetNFakeITSHits()==0 && icl==-1) fHMCLrChi2->Fill(chi2,lrP->GetActiveID());
     AliDebug(2,Form("Seed-to-cluster chi2 = Chi2=%.2f",chi2));
     if (chi2>fMaxChi2Cl) continue;
@@ -1629,7 +1649,7 @@ void R5Detector::CheckTrackProlongations(R5Probe *probe, R5Layer* lr, R5Layer* l
     // update track copy
     R5Probe* newTr = lr->AddMCTrack( probe );
     fUpdCalls++;
-    if (!newTr->Update(meas,measErr2)) {
+    if (!newTr->AliExternalTrackParam::Update(meas,measErr2)) {
       AliDebug(2,Form("Layer %s: Failed to update the track by measurement {%.3f,%3f} err {%.3e %.3e %.3e}",
 		      lrP->GetName(),meas[0],meas[1], measErr2[0],measErr2[1],measErr2[2]));
       if (AliLog::GetGlobalDebugLevel()>1) newTr->Print("l");
@@ -1789,10 +1809,10 @@ Double_t R5Detector::PropagateBack(R5Probe* trc)
       meas[0] = clMC->GetY(); meas[1] = clMC->GetZ();
       measErr2[0] = lr->fPhiRes*lr->fPhiRes;
       measErr2[2] = lr->fZRes*lr->fZRes;
-      Double_t chi2a = bwd.GetPredictedChi2(meas,measErr2);
+      Double_t chi2a = bwd.AliExternalTrackParam::GetPredictedChi2(meas,measErr2);
       chi2Tot += chi2a;
       printf("Chis %d (cl%+3d): t2c: %6.3f tot: %6.3f\n",aID,icl,chi2a, chi2Tot);
-      bwd.Update(meas,measErr2);
+      bwd.AliExternalTrackParam::Update(meas,measErr2);
       bwd.AddHit(aID, chi2a, icl);	
     }
     if (!bwd.CorrectForMeanMaterial(lr,kFALSE)) return -1;
