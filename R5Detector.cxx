@@ -20,6 +20,8 @@
 #include <TArrayI.h>
 #include "AliLog.h"
 #include "AliESDVertex.h"
+#include "TDatabasePDG.h"
+#include "TParticle.h"
 
 /***********************************************************
 
@@ -911,6 +913,13 @@ Bool_t R5Detector::UpdateTrack(R5Probe* trc, R5Layer* lr, R5Cluster* cl) const
   return kTRUE;
 }
 
+Bool_t R5Detector::ProcessTrack(const TParticle* part)
+{
+  return ProcessTrack(part->Pt(),part->Eta(),part->GetMass(),
+		      TDatabasePDG::Instance()->GetParticle(part->GetPdgCode())->Charge()/3,
+		      part->Phi(),part->Vx(),part->Vy(),part->Vz());
+}
+  
 Bool_t R5Detector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x,Double_t y, Double_t z)
 {
   // find analytical solution for given seed
@@ -1031,7 +1040,7 @@ Bool_t R5Detector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int ch
     if (lr->IsDead()) continue;
     lr->CalcExtComb();
   }
-  
+  return kTRUE;
 }
 
 Bool_t R5Detector::ExtrapolateToR(R5Probe* probe, Double_t r) const

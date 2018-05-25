@@ -23,6 +23,7 @@ class TH1F;
 class TGraph;
 class TArrayI;
 class AliCluster;
+class TParticle;
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -263,6 +264,7 @@ class R5Detector : public TNamed {
 
   // main method to check single track
   Bool_t ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x=0.,Double_t y=0., Double_t z=0.);
+  Bool_t ProcessTrack(const TParticle* part);
 
   
   void AddLayer(char *name, Double_t radius, Double_t zmax, Double_t radL, Double_t xrho=0., Double_t phiRes=-1, Double_t zRes=-1, Double_t eff=-1);
