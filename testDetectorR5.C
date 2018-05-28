@@ -42,6 +42,11 @@ void testDetectorR5(int nev = 10, int ntracks=10) {
 
       // transfer the track to ESDevent
       AliESDtrack* esdTr = (AliESDtrack*)its->GetProbeTrackInwardAsESDTrack();
+      // if needed, add fake TPC flags, though this may create problems in AOD filtering
+      esdTr->SetFlag(AliESDtrack::kTPCin);
+      esdTr->SetFlag(AliESDtrack::kTPCout);
+      esdTr->SetFlag(AliESDtrack::kTPCrefit);
+      
       // add extra info if needed, for instance, MC label
       esdTr->SetLabel(i);
       esdEv->AddTrack(esdTr);
