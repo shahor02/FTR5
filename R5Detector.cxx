@@ -105,6 +105,7 @@ void R5Probe::ResetTrackingInfo()
   fNHitsFake = 0;
   SetNumberOfClusters(0);
   ResetCovMat();
+  StartTimeIntegral();
   TObject::Clear(); // to clean bits?
 }
 
@@ -802,7 +803,6 @@ void R5Detector::PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t mass, in
   // Prepare trackable Kalman track at the farthest position
   //
   // Set track parameters
-  // Assume track started at (0,0,0) and shoots out on the X axis, and B field is on the Z axis
   Double_t lambda = TMath::Pi()/2.0 - 2.0*TMath::ATan(TMath::Exp(-eta));
   Reset();
   fProbeInMC0.Reset();
@@ -923,6 +923,8 @@ Bool_t R5Detector::ProcessTrack(const TParticle* part)
 Bool_t R5Detector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x,Double_t y, Double_t z)
 {
   // find analytical solution for given seed
+  AliESDVertex vtx0(0.,0.,0.,0);
+
   PrepareKalmanTrack(pt, eta, mass, charge, phi, x,y, z);
   
   if (fLastActiveLayerTracked<0) return kFALSE; // no hits
@@ -973,6 +975,37 @@ Bool_t R5Detector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int ch
   // do outward propagation
   R5Probe probeOut = probeInw;
   probeOut.ResetTrackingInfo();
+  // init TOF info assuming the track comes from the vertex
+  probeOut.StartTimeIntegral();
+  R5Probe r5Tmp = probeInw;
+  Bool_t tofOK = probeInw.IsHit(fNActiveLayers-1); // TOF info is available for the tracks reaching last layer
+  if (tofOK) tofOK &= r5Tmp.PropagateToDCA(&vtx0,fBFieldG,999.);
+  if (tofOK && (tofOK &= r5Tmp.RotateParamOnlyTo(probeInw.GetAlpha())) && (tofOK &= (r5Tmp.GetX()<probeInw.GetX()))) {
+    r5Tmp.StartTimeIntegral();
+    double xyz0[3] = {r5Tmp.GetX(), r5Tmp.GetY(), r5Tmp.GetZ()};
+    double dx = probeInw.GetX() - x0;
+    double crv = TMath::Abs(r5Tmp.GetC(fBFieldG));
+    double rad = crv>1e-6 ? 1./crv : 1e6; // avoid too large steps
+    int nsteps = dx/(0.01*rad)+1;
+    dx /= nsteps;
+    while (r5Tmp.GetX()<probeInw.GetX() && (tofOK &= r5Tmp.PropagateParamOnlyTo(r5Tmp.GetX(), fBFieldG)) ) {
+      double xyz1[3] = {r5Tmp.GetX(), r5Tmp.GetY(), r5Tmp.GetZ()};
+      double dst2 = 0;
+      for (int i=0;i<3;i++) {
+	double d = (xyz1[i]-xyz0[i]);
+	dst2 += d*d;
+	xyz0[i] = xyz1[i];
+      }
+      r5Tmp.AddTimeStep(TMath::Sqrt(dst2));
+    }
+    if (tofOK) { // transfer TOF info to probeOut
+      probeOut.SetIntegratedLength(r5Tmp.GetIntegratedLength());
+      Double32_t integratedTime[AliPID::kSPECIESC];
+      r5Tmp.GetIntegratedTimes(integratedTime);
+      probeOut.SetIntegratedTimes(integratedTime);
+    }
+  }
+  
   int outerReached = -1;
   for (int ilr=innerReached;ilr<fNLayers;ilr++) {
     R5Layer *lr = GetLayer(ilr);
@@ -998,7 +1031,6 @@ Bool_t R5Detector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int ch
   //
   if (fProbeInward.GetNHits()<GetMinHits()) return kFALSE;
   if (fPropagateToOrigin) {
-    AliESDVertex vtx0(0.,0.,0.,0);
     AliExternalTrackParam trTmp = fProbeInward;
     if (trTmp.PropagateToDCA(&vtx0,fBFieldG,999.)) {
       double rDCA = TMath::Sqrt(trTmp.GetX()*trTmp.GetX()+trTmp.GetY()*trTmp.GetY());
@@ -1008,6 +1040,14 @@ Bool_t R5Detector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int ch
     }
   }
 
+  fProbeInward.StartTimeIntegral(); // reset
+  if (tofOK) {  // copy integrals from outward propagation
+    fProbeInward.SetIntegratedLength( probeOut.GetIntegratedLength() );
+    Double32_t integratedTime[AliPID::kSPECIESC];
+    probeOut.GetIntegratedTimes(integratedTime);
+    fProbeInward.SetIntegratedTimes(integratedTime);
+  }
+  
   /*
   // do final inward propagation with eventual fake clusters attachment
   probeInw = fProbeOutMC;
