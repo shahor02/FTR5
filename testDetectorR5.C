@@ -5,6 +5,7 @@
 //void standardPlots() {
 R5Detector* its = 0;
 R5Detector* CreateDetector();
+void AddESDTrack(AliESDEvent* ev, AliESDtrack* trc);
 
 AliESDEvent* esdEv = 0;
 
@@ -43,11 +44,10 @@ void testDetectorR5(int nev = 10, int ntracks=10) {
       // transfer the track to ESDevent
       AliESDtrack* esdTr = (AliESDtrack*)its->GetProbeTrackInwardAsESDTrack();
       // if needed, add fake TPC flags, though this may create problems in AOD filtering
-      esdTr->SetStatus(AliESDtrack::kTPCin|AliESDtrack::kTPCout|AliESDtrack::kTPCrefit);
-      
+      esdTr->SetStatus(AliESDtrack::kTPCin|AliESDtrack::kTPCout|AliESDtrack::kTPCrefit);     
       // add extra info if needed, for instance, MC label
       esdTr->SetLabel(i);
-      esdEv->AddTrack(esdTr);
+      its->AddESDTrackToEvent(esdEv, esdTr); // Call this for proper transfer of info to ESD event
       
     }
     // fit vertexTracks
@@ -114,3 +114,4 @@ R5Detector* CreateDetector()
   det->AddLayer((char*)"dddX",  100.0, 130.0, x0OB, xRho, resRPhiOB, resZOB,eff); 
   return det;
 }
+

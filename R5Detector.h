@@ -11,6 +11,10 @@
 #include "AliExternalTrackParam.h"
 #include "AliKalmanTrack.h"
 #include "AliESDtrack.h"
+#include "AliESDEvent.h"
+#include "AliESDTOFCluster.h"
+#include "AliESDTOFHit.h"
+
 
 //-------------------------------------------------------------------------
 // Current support and development: Ruben Shahoyan (Ruben.Shahoyan@cern.ch) 
@@ -81,7 +85,7 @@ class R5Probe : public AliKalmanTrack {
   //
   Bool_t    CorrectForMeanMaterial(const R5Layer* lr, Bool_t inward=kTRUE);
   Bool_t    GetXatLabR(Double_t r,Double_t &x, Double_t bz, Int_t dir=0) const;
-  Bool_t    PropagateToR(Double_t r, Double_t b, int dir=0);
+  Bool_t    PropagateToR(Double_t r, Double_t b, int dir=0, Bool_t tof = kFALSE);
   //
   void      SetInnerChecked(int n)                      {fInnerChecked = n;}
   void      SetOuterChecked(int n)                      {fOuterChecked = n;}
@@ -96,7 +100,7 @@ class R5Probe : public AliKalmanTrack {
   void      ResetHit(Int_t lr);
   Bool_t    IsHit(Int_t lr)                       const {return (lr<fgNLayers) ? IsWBit(fHits,lr)  : kFALSE;}
   Bool_t    IsHitFake(Int_t lr)                   const {return (lr<fgNLayers) ? IsWBit(fFakes,lr) : kFALSE;}
-  Bool_t    PropagateToCluster(R5Cluster* cl, Double_t b);
+  Bool_t    PropagateToCluster(R5Cluster* cl, Double_t b, bool tof = kFALSE);
   // protected: 
   static void   SetWBit(UInt_t &patt,UInt_t bit)               {patt |= 0x1<<bit;}
   static void   ResetWBit(UInt_t &patt,UInt_t bit)             {patt &= ~(0x1<<bit);}
@@ -107,7 +111,9 @@ class R5Probe : public AliKalmanTrack {
   static Double_t GetMissingHitPenalty()                        {return fgMissingHitPenalty;}
   static void     SetMissingHitPenalty(Double_t p=2.)             {fgMissingHitPenalty = p;}
   //
-  virtual Double_t GetPIDsignal() const { return 0; }
+  virtual Double_t GetPIDsignal() const { return GetTOFsignal(); }
+  void             SetTOFsignal(float s) { fTOFsignal = s; }
+  Double_t         GetTOFsignal() const { return fTOFsignal; }
   
  private:
   // dummy methods
@@ -121,6 +127,7 @@ class R5Probe : public AliKalmanTrack {
   Short_t fNHitsFake; // number of fake ITS hits
   Short_t fInnerChecked; // innermost layer checked
   Short_t fOuterChecked; // innermost layer checked
+  Float_t fTOFsignal;    // TOF signal in ps
   //
   static Int_t    fgNLayers;
   static Double_t fgMissingHitPenalty;
@@ -163,14 +170,24 @@ inline void R5Probe::ResetHit(Int_t lr) {
 //////////////////////////////////////////////////////////////////////////////////////////////
 
 //____________________________________________________________________________
-inline Bool_t R5Probe::PropagateToCluster(R5Cluster* cl, Double_t b)
+inline Bool_t R5Probe::PropagateToCluster(R5Cluster* cl, Double_t b, bool tof)
 {
   // propagate track to cluster frame
+  double xyz0[3],xyz1[3];
+  if (tof) {
+    GetXYZ(xyz0);
+  }
   if ( (TMath::Abs(cl->GetPhi() - GetAlpha())>1e-4 &&  !Rotate(cl->GetPhi())) ||
        (TMath::Abs(cl->GetX() - GetX())>1e-4 && !AliExternalTrackParam::PropagateTo(cl->GetX(),b)) ) {
     AliDebugF(2,"Failed to propagate track to cluster at phi=%.3f X=%.3f",cl->GetPhi(),cl->GetX());
     if (AliLog::GetGlobalDebugLevel()>1) Print();
     return kFALSE;
+  }
+  if (tof) {
+    GetXYZ(xyz1);
+    double sgn = xyz0[0]*xyz0[0]+xyz0[1]*xyz0[1] < xyz1[0]*xyz1[0]+xyz1[1]*xyz1[1] ? 1 : -1;
+    double dx = xyz1[0]-xyz0[0], dy = xyz1[1]-xyz0[1], dz = xyz1[2]-xyz0[2];
+    AddTimeStep( sgn*TMath::Sqrt(dx*dx+dy*dy+dz*dz) );
   }
   return kTRUE;
 }
@@ -263,9 +280,9 @@ class R5Detector : public TNamed {
   virtual ~R5Detector();
 
   // main method to check single track
-  Bool_t ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x=0.,Double_t y=0., Double_t z=0.);
+  Bool_t ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x=0.,Double_t y=0., Double_t z=0., Double_t t=0.);
   Bool_t ProcessTrack(const TParticle* part);
-
+  static void AddESDTrackToEvent(AliESDEvent* ev, const AliESDtrack* trc);
   
   void AddLayer(char *name, Double_t radius, Double_t zmax, Double_t radL, Double_t xrho=0., Double_t phiRes=-1, Double_t zRes=-1, Double_t eff=-1);
   Int_t GetLayerID(Int_t actID) const;
@@ -291,6 +308,9 @@ class R5Detector : public TNamed {
   Int_t GetFirstActiveLayerTracked() const {return fFirstActiveLayerTracked;}
   Int_t GetLastActiveLayerTracked() const {return fLastActiveLayerTracked;}
 
+  void SetTOFResolution(double r=20) { fTOFResolutionPS = r;}
+  Double_t GetTOFResolution() const { return fTOFResolutionPS;}
+
   // Helper functions
   Double_t ThetaMCS                 ( Double_t mass, Double_t RadLength, Double_t momentum ) const;
   Double_t ProbGoodHit              ( Double_t radius, Double_t searchRadiusRPhi, Double_t searchRadiusZ ); 
@@ -314,6 +334,7 @@ class R5Detector : public TNamed {
   R5Layer* GetLayer(const char* name) const {return (R5Layer*) fLayers.FindObject(name);}
   R5Probe* GetProbeGen()         const {return (R5Probe*)&fProbeInMC0;}
   R5Probe* GetProbeTrackInward() const {return (R5Probe*)&fProbeInward;}
+  R5Probe* GetProbeOutMC()         const {return (R5Probe*)&fProbeOutMC;}
   const AliESDtrack* GetProbeTrackInwardAsESDTrack();
   void      ClassifyLayers();
   void      Reset();
@@ -330,7 +351,7 @@ class R5Detector : public TNamed {
   Bool_t   GetPropagateToOrigin()           const {return fPropagateToOrigin;}
   
 
-  void PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi=0,Double_t x=0.,Double_t y=0.,Double_t z=0.);
+  void PrepareKalmanTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi=0,Double_t x=0.,Double_t y=0.,Double_t z=0., Double_t t=0.);
   int TransportKalmanTrackWithMS(R5Probe *probTr, Bool_t applyMatCorr=kTRUE);
   Bool_t PropagateToLayer(R5Probe* trc, const R5Layer* lr, int dir) const;
   Bool_t ExtrapolateToR(R5Probe* probe, Double_t r) const;
@@ -393,6 +414,7 @@ class R5Detector : public TNamed {
   Int_t    fMinHits;  // min ITS hits in track to accept
   Double_t fMaxSnp;      // max allowe snp
   Bool_t   fPropagateToOrigin; // propagate all tracks to DCA to origin
+  Double_t fTOFResolutionPS; // TOF resolution in ps
   //
   R5Probe fProbeInMC0; // initially provided probe
   R5Probe fProbeOutMC; // probe propagated to outer radius with material effects
