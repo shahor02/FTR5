@@ -1,3 +1,15 @@
+#if !defined(__CINT__) || defined(__MAKECINT__)
+
+#include "R5Detector.h"
+
+#include "AliESDUtils.h"
+#include "AliESDEvent.h"
+#include "AliESDVertex.h"
+#include "AliESDtrack.h"
+#include <TBits.h>
+#include <iostream>
+
+#endif
 
 // You have to load the class before ... ;-)
 // .L DetectorK.cxx++
@@ -5,7 +17,6 @@
 //void standardPlots() {
 R5Detector* its = 0;
 R5Detector* CreateDetector();
-void AddESDTrack(AliESDEvent* ev, AliESDtrack* trc);
 
 AliESDEvent* esdEv = 0;
 
@@ -19,7 +30,7 @@ void testDetectorR5(int nev = 10, int ntracks=10) {
   const double kBeamSig = 50e-4;
   const double beamPos[3] = {0.,0.,0.};
   const double beamSig[3] = {kBeamSig, kBeamSig, 6. };
-  AliESDVertex diamond(beamPos,beamSig,"diamond");
+  AliESDVertex diamond((double*)beamPos,(double*)beamSig,"diamond");
   
   
   for (int iev=0;iev<nev;iev++) {
@@ -61,7 +72,7 @@ void testDetectorR5(int nev = 10, int ntracks=10) {
       printf("Tr#%2d Pt: %5.2f Eta: %+4.1f Phi: %+5.2f",itr,esdtr->Pt(), esdtr->Eta(), esdtr->Phi());
       // since esd track has can account for 7 ITS layers pattern at mose, I stored
       // the hits pattern info in the TPC data...
-      TBits &hits = esdtr->GetTPCClusterMap();
+      const TBits &hits = esdtr->GetTPCClusterMap();
       //TBits &fakes = esdtr->GetTPCSharedMap(); // here we store fakes, but at the moment they are not set
       printf(" Hits: ");
       for (int ilr=0;ilr<its->GetNActiveLayers();ilr++) {
