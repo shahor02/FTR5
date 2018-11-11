@@ -496,6 +496,7 @@ TNamed("test_detector","detector"),
   fLastActiveLayer(-1),
   fFirstActiveLayerTracked(-1),
   fLastActiveLayerTracked(-1),
+  fLayers(),
   fBFieldG(5.),
   fIntegrationTime(0.02), // in ms
   fdNdEtaCent(2000),       // Multiplicity
@@ -505,7 +506,11 @@ TNamed("test_detector","detector"),
   fMinHits(4),
   fMaxSnp(0.8),
   fPropagateToOrigin(kFALSE),
-  fTOFResolutionPS(30.)
+  fTOFResolutionPS(30.),
+  fProbeInMC0(),
+  fProbeOutMC(),
+  fProbeInward(),
+  fESDtrack()
 {
   //
   // default constructor
@@ -520,6 +525,7 @@ R5Detector::R5Detector(char *name, char *title)
     fLastActiveLayer(-1),
     fFirstActiveLayerTracked(-1),
     fLastActiveLayerTracked(-1),
+    fLayers(),
     fBFieldG(5.),
     fIntegrationTime(0.02), // in ms
     fdNdEtaCent(2000),       // Multiplicity
@@ -529,7 +535,11 @@ R5Detector::R5Detector(char *name, char *title)
     fMinHits(4),
     fMaxSnp(0.8),
     fPropagateToOrigin(kFALSE),
-    fTOFResolutionPS(30.)
+    fTOFResolutionPS(30.),
+    fProbeInMC0(),
+    fProbeOutMC(),
+    fProbeInward(),
+    fESDtrack()
 {
   //
   // default constructor, that set the name and title
@@ -1025,7 +1035,7 @@ Bool_t R5Detector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int ch
     int nsteps = dx/(0.01*rad)+1;
     dx /= nsteps;
     while (TMath::Abs(r5Tmp.GetX()-probeInw.GetX())>1e-3 &&
-	   (tofOK &= r5Tmp.PropagateParamOnlyTo(r5Tmp.GetX(), fBFieldG)) ) {
+	   (tofOK &= r5Tmp.PropagateParamOnlyTo(r5Tmp.GetX()+dx, fBFieldG)) ) {
       double xyz1[3] = {r5Tmp.GetX(), r5Tmp.GetY(), r5Tmp.GetZ()};
       double dst2 = 0;
       for (int i=0;i<3;i++) {
