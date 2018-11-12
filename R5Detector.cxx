@@ -1027,8 +1027,8 @@ Bool_t R5Detector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int ch
   r5Tmp.StartTimeIntegral();
   Bool_t tofOK = probeInw.IsHit(fNActiveLayers-1); // TOF info is available for the tracks reaching last layer
   if (tofOK) tofOK &= r5Tmp.PropagateToDCA(&vtx0,fBFieldG,999.);
-  double xyz0[3] = {r5Tmp.GetX(), r5Tmp.GetY(), r5Tmp.GetZ()};
   if (tofOK && (tofOK &= r5Tmp.RotateParamOnly(probeInw.GetAlpha())) && r5Tmp.GetX()<probeInw.GetX()) {
+    double xyz0[3] = {r5Tmp.GetX(), r5Tmp.GetY(), r5Tmp.GetZ()};
     double dx = probeInw.GetX() - xyz0[0];
     double crv = TMath::Abs(r5Tmp.GetC(fBFieldG));
     double rad = crv>1e-6 ? 1./crv : 1e6; // avoid too large steps
