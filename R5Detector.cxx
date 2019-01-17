@@ -404,6 +404,7 @@ void R5Layer::CalcExtComb()
     }
     else {
       for (int i=kNPointParam;i--;) fExtComb[i] = -1; // not defined
+      return;
     }
   }
   else {
