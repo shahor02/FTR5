@@ -48,8 +48,9 @@ void testDetectorR5(int nev = 10, int ntracks=10) {
       double pT = 2.*gRandom->Rndm()+0.2; // random pT between 0.2 and 2.2
       double phi = gRandom->Rndm()*TMath::Pi()*2;
       int charge = gRandom->Rndm()>0.5 ? 1:-1;
-      printf("inp %e %e %d %e\n",pT,eta,charge,phi);
       Bool_t res = its->ProcessTrack(pT, eta, 0.139, charge, phi, vx, vy, vz);    
+      printf("inp %e %e %d %e | NHits assigned: %d\n",pT,eta,charge,phi, its->GetNHitsAssigned());
+
       if (!res) continue; // track is not reconstructed
 
       // transfer the track to ESDevent

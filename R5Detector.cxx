@@ -511,7 +511,8 @@ TNamed("test_detector","detector"),
   fProbeInMC0(),
   fProbeOutMC(),
   fProbeInward(),
-  fESDtrack()
+  fESDtrack(),
+  fNHitsAssigned(0)
 {
   //
   // default constructor
@@ -540,7 +541,8 @@ R5Detector::R5Detector(char *name, char *title)
     fProbeInMC0(),
     fProbeOutMC(),
     fProbeInward(),
-    fESDtrack()
+    fESDtrack(),
+    fNHitsAssigned(0)
 {
   //
   // default constructor, that set the name and title
@@ -911,6 +913,9 @@ int R5Detector::TransportKalmanTrackWithMS(R5Probe *probTr, Bool_t applyMatCorr)
     if (lr->GetLayerEff()<gRandom->Rndm()) { // impose inefficiency
       lr->GetMCCluster()->Kill(kTRUE);
     }
+    else {
+      fNHitsAssigned++;
+    }
     nActLrOK++;
     //
   }
@@ -971,7 +976,8 @@ Bool_t R5Detector::ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int ch
 {
   // find analytical solution for given seed
   AliESDVertex vtx0(0.,0.,0.,0);
-
+  fNHitsAssigned = 0;
+  
   PrepareKalmanTrack(pt, eta, mass, charge, phi, x,y, z, t);
   
   if (fLastActiveLayerTracked<0) return kFALSE; // no hits

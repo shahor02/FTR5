@@ -283,6 +283,8 @@ class R5Detector : public TNamed {
   Bool_t ProcessTrack(Double_t pt, Double_t eta, Double_t mass, int charge, Double_t phi, Double_t x=0.,Double_t y=0., Double_t z=0., Double_t t=0.);
   Bool_t ProcessTrack(const TParticle* part);
   static void AddESDTrackToEvent(AliESDEvent* ev, const AliESDtrack* trc);
+  Int_t GetNHitsAssigned() const {return fNHitsAssigned;}
+  
   
   void AddLayer(char *name, Double_t radius, Double_t zmax, Double_t radL, Double_t xrho=0., Double_t phiRes=-1, Double_t zRes=-1, Double_t eff=-1);
   Int_t GetLayerID(Int_t actID) const;
@@ -420,6 +422,8 @@ class R5Detector : public TNamed {
   R5Probe fProbeOutMC; // probe propagated to outer radius with material effects
   R5Probe fProbeInward; // probe after innermost update
   AliESDtrack fESDtrack; // place-holder to transfer reconstructed track as ESDtrack
+  Int_t   fNHitsAssigned;
+
   //
   static Double_t fgVtxConstraint[2];  // if both positive, the vertex is used as constraint (accounted in chi2 but not in update)
   ClassDef(R5Detector,1);
