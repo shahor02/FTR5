@@ -932,7 +932,7 @@ Bool_t R5Detector::PropagateToLayer(R5Probe* trc, const R5Layer* lr, int dir) co
   // rotate to frame with X axis normal to the surface (defined by ideal track)
   if (!lr->IsVertex()) {
     Double_t phi = trc->PhiPos();
-    if ( TMath::Abs(TMath::Abs(phi)-TMath::Pi()/2)<1e-3) phi = 0;
+    //if ( TMath::Abs(TMath::Abs(phi)-TMath::Pi()/2)<1e-3) phi = 0;
     if (!trc->Rotate(phi)) {
       return kFALSE;
     }
@@ -1152,11 +1152,13 @@ Bool_t R5Detector::ExtrapolateToR(R5Probe* probe, Double_t r) const
 {
   // go to radius correcting for materials
   if (!probe) return kFALSE;
+  const double kEps = 1e-4;
   R5Probe probeC = *probe;
   Double_t curR2 = probe->GetX()*probe->GetX()+probe->GetY()*probe->GetY();
   int dir = 0;
   int lrId0 = -1, lrIdTgt = -1; // 1st layer to cross and last layer in given direction
-  double df2 = curR2 - r*r;
+  double r2tgt = r*r;
+  double df2 = curR2 - r2tgt;
   if (TMath::Abs(df2)<1e-4) return kTRUE;
   if (df2<0.) {
     dir = 1; // outward
@@ -1164,8 +1166,15 @@ Bool_t R5Detector::ExtrapolateToR(R5Probe* probe, Double_t r) const
     for (int ilr=0;ilr<fNLayers;ilr++) {
       R5Layer* lr = GetLayer(ilr);
       if (lr->IsVertex()) continue;
-      if (lr->GetRadius()*lr->GetRadius()>curR2) {
-	lrId0 = ilr;
+      if (lr->GetRadius()*lr->GetRadius()>curR2+kEps) {
+	lrId0 = ilr; // start from this layer
+	break;
+      }
+    }
+    for (int ilr=lrId0;fNLayers;ilr++) {
+      R5Layer* lr = GetLayer(ilr);
+      if (lr->GetRadius()>r-kEps) {
+	lrIdTgt = ilr; // go just below this layer
 	break;
       }
     }
@@ -1176,8 +1185,16 @@ Bool_t R5Detector::ExtrapolateToR(R5Probe* probe, Double_t r) const
     for (int ilr=fNLayers;ilr--;) {
       R5Layer* lr = GetLayer(ilr);
       if (lr->IsVertex()) continue;
-      if (lr->GetRadius()*lr->GetRadius()<curR2) {
+      if (lr->GetRadius()*lr->GetRadius()<curR2-kEps) {
 	lrId0 = ilr;
+	break;
+      }
+    }
+    for (int ilr=lrId0;ilr>-1;ilr--) {
+      R5Layer* lr = GetLayer(ilr);
+      if (lr->IsVertex()) continue;
+      if (lr->GetRadius()<r+kEps) {
+	lrIdTgt = ilr; // go just above this layer
 	break;
       }
     }
@@ -1191,7 +1208,8 @@ Bool_t R5Detector::ExtrapolateToR(R5Probe* probe, Double_t r) const
     }
   }
   // now propagate to final R
-  if (!probeC.PropagateToR(r,fBFieldG,dir)) return kFALSE;
+  probeC.PropagateToR(r,fBFieldG,dir);
+  //if (!probeC.PropagateToR(r,fBFieldG,dir)) return kFALSE;
   *probe = probeC;
   return kTRUE;
 }
